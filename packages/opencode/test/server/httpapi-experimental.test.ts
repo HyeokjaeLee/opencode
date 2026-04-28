@@ -112,21 +112,19 @@ describe("experimental HttpApi", () => {
 
   test("serves Console org switch through Hono bridge", async () => {
     await using tmp = await tmpdir({ config: { formatter: false, lsp: false } })
-    Database.use((db) =>
-      (db as Database.Client).$client
-        .prepare(
-          "INSERT INTO account (id, email, url, access_token, refresh_token, time_created, time_updated) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        )
-        .run(
-          "account-test",
-          "test@example.com",
-          "https://console.example.com",
-          "access",
-          "refresh",
-          Date.now(),
-          Date.now(),
-        ),
-    )
+    Database.client()
+      .$client.prepare(
+        "INSERT INTO account (id, email, url, access_token, refresh_token, time_created, time_updated) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        "account-test",
+        "test@example.com",
+        "https://console.example.com",
+        "access",
+        "refresh",
+        Date.now(),
+        Date.now(),
+      )
 
     const switched = await app().request(ExperimentalPaths.consoleSwitch, {
       method: "POST",

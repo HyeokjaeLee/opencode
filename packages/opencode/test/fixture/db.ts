@@ -8,15 +8,23 @@ import { Database } from "@/storage/db"
 // Disposes every runtime that consumes `DatabaseEffect.layer` so the shared
 // layer memoMap drops its entry. Once all consumers are released, the
 // layer's finalizer closes the SQLite handle and only then are the
-// on-disk files safe to remove. Order among the runtime disposals does not
-// matter — the file cleanup must come last.
+// on-disk files safe to remove.
+//
+// The four module-scoped consumers are independent and can dispose in
+// parallel. The DB runtime is disposed afterwards because its release is
+// what fires the layer finalizer once the refcount hits zero, and the file
+// removal must come last.
 export async function resetDatabase() {
-  await Instance.disposeAll().catch(() => undefined)
-  await AppRuntime.dispose().catch(() => undefined)
-  await BootstrapRuntime.dispose().catch(() => undefined)
-  await ExperimentalHttpApiServer.disposeWebHandler().catch(() => undefined)
+  await Promise.allSettled([
+    Instance.disposeAll(),
+    AppRuntime.dispose(),
+    BootstrapRuntime.dispose(),
+    ExperimentalHttpApiServer.disposeWebHandler(),
+  ])
   await Database.close()
-  await rm(Database.Path, { force: true }).catch(() => undefined)
-  await rm(`${Database.Path}-wal`, { force: true }).catch(() => undefined)
-  await rm(`${Database.Path}-shm`, { force: true }).catch(() => undefined)
+  await Promise.allSettled([
+    rm(Database.Path, { force: true }),
+    rm(`${Database.Path}-wal`, { force: true }),
+    rm(`${Database.Path}-shm`, { force: true }),
+  ])
 }

@@ -83,18 +83,21 @@ export const layer = Layer.effect(
       db.run("PRAGMA foreign_keys = ON")
       db.run("PRAGMA wal_checkpoint(PASSIVE)")
 
-      const entries =
+      const source =
         typeof OPENCODE_MIGRATIONS !== "undefined"
           ? OPENCODE_MIGRATIONS
           : readMigrations(path.join(import.meta.dirname, "../../migration"))
-      if (entries.length > 0) {
+      if (source.length > 0) {
         log.info("applying migrations", {
-          count: entries.length,
+          count: source.length,
           mode: typeof OPENCODE_MIGRATIONS !== "undefined" ? "bundled" : "dev",
         })
-        if (Flag.OPENCODE_SKIP_MIGRATIONS) {
-          for (const item of entries) item.sql = "select 1;"
-        }
+        // Mapping rather than mutating preserves the bundled `OPENCODE_MIGRATIONS`
+        // array so a subsequent acquire (after Database.close) sees the original
+        // SQL even if `OPENCODE_SKIP_MIGRATIONS` was toggled mid-process.
+        const entries = Flag.OPENCODE_SKIP_MIGRATIONS
+          ? source.map((item) => ({ ...item, sql: "select 1;" }))
+          : source
         migrate(db, entries)
       }
       return db

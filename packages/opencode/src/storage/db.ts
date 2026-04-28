@@ -1,4 +1,4 @@
-import { Effect, ManagedRuntime } from "effect"
+import { ManagedRuntime } from "effect"
 export * from "drizzle-orm"
 import { memoMap } from "@opencode-ai/core/effect/memo-map"
 import { NamedError } from "@opencode-ai/core/util/error"
@@ -23,15 +23,23 @@ export const NotFoundError = NamedError.create(
 // runtimes share the global memoMap so they resolve to the same Service.
 const runtime = lazy(() => ManagedRuntime.make(DatabaseEffect.layer, { memoMap }))
 
-export type Client = ReturnType<typeof current>
+// Resolves the current Drizzle handle. The Service value is stable for the
+// lifetime of the runtime, so cache it to avoid paying fiber-startup cost on
+// every `Database.use(cb)` call. `close()` clears the cache when the runtime
+// is disposed.
+let cached: Client | undefined
+function resolve() {
+  return runtime().runSync(DatabaseEffect.Service.asEffect())
+}
+export function client(): Client {
+  return (cached ??= resolve())
+}
+
+export type Client = ReturnType<typeof resolve>
 
 export type Transaction = Parameters<Parameters<Client["transaction"]>[0]>[0]
 
 export type TxOrDb = Transaction | Client
-
-function current() {
-  return runtime().runSync(DatabaseEffect.Service.use(Effect.succeed))
-}
 
 // Disposes the dedicated DB runtime so its memoMap reference is released.
 // When every other runtime consuming the layer has also been disposed, the
@@ -39,6 +47,7 @@ function current() {
 // handle. Used by `test/fixture/db.ts:resetDatabase`.
 export async function close() {
   const old = runtime.peek()
+  cached = undefined
   runtime.reset()
   await old?.dispose()
 }
@@ -54,7 +63,7 @@ export function use<T>(callback: (trx: TxOrDb) => T): T {
   } catch (err) {
     if (!(err instanceof LocalContext.NotFound)) throw err
   }
-  const db = current()
+  const db = client()
   const effects: (() => void | Promise<void>)[] = []
   const result = ctx.provide({ effects, tx: db }, () => callback(db))
   for (const effect of effects) effect()
@@ -83,7 +92,7 @@ export function transaction<T>(
   } catch (err) {
     if (!(err instanceof LocalContext.NotFound)) throw err
   }
-  const db = current()
+  const db = client()
   const effects: (() => void | Promise<void>)[] = []
   const txCallback = InstanceState.bind((tx: TxOrDb) => ctx.provide({ tx, effects }, () => callback(tx)))
   const result = db.transaction(txCallback, { behavior: options?.behavior }) as NotPromise<T>
