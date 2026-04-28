@@ -1,7 +1,13 @@
 import { createContext, createMemo, createSignal, useContext, type Accessor, type ParentProps } from "solid-js"
 import { DialogSelect, type DialogSelectRef } from "@tui/ui/dialog-select"
 import { useDialog } from "@tui/ui/dialog"
-import { formatKeySequence, reactiveMatcherFromSignal, useKeymapSelector, useOpencodeKeymap } from "../keymap"
+import {
+  formatKeySequence,
+  reactiveMatcherFromSignal,
+  type OpenTuiKeymap,
+  useKeymapSelector,
+  useOpencodeKeymap,
+} from "../keymap"
 import { useTuiConfig } from "./tui-config"
 
 type SlashEntry = {
@@ -22,8 +28,13 @@ type CommandPaletteContext = {
 
 const COMMAND_PALETTE_DIALOG = "command.palette.show"
 const ctx = createContext<CommandPaletteContext>()
+type PaletteCommandEntry = ReturnType<OpenTuiKeymap["getCommandEntries"]>[number]
 
-function formatCommandBindings(bindings: readonly { sequence: readonly any[] }[], config: ReturnType<typeof useTuiConfig>) {
+function isVisiblePaletteCommand(entry: PaletteCommandEntry) {
+  return entry.command.fields.hidden !== true && entry.command.name !== COMMAND_PALETTE_DIALOG
+}
+
+function formatCommandBindings(bindings: PaletteCommandEntry["bindings"], config: ReturnType<typeof useTuiConfig>) {
   const formatted = bindings
     .map((binding) => formatKeySequence(binding.sequence, config))
     .filter(Boolean)
@@ -44,26 +55,22 @@ function formatCommandBindings(bindings: readonly { sequence: readonly any[] }[]
 export function CommandPaletteProvider(props: ParentProps) {
   const dialog = useDialog()
   const keymap = useOpencodeKeymap()
-  const config = useTuiConfig()
   const [suspendCount, setSuspendCount] = createSignal(0)
-    const entries = useKeymapSelector((manager: any) =>
-      manager
-        .getCommandEntries({
-          visibility: "reachable",
-          namespace: "palette",
-          filter(command: { fields: Record<string, unknown> }) {
-            return command.fields.hidden !== true
-          },
-        })
-        .filter((entry: { command: { name: string } }) => entry.command.name !== COMMAND_PALETTE_DIALOG),
-    )
+  const entries = useKeymapSelector((keymap: OpenTuiKeymap) =>
+    keymap
+      .getCommandEntries({
+        visibility: "reachable",
+        namespace: "palette",
+      })
+      .filter(isVisiblePaletteCommand),
+  )
 
   const run = (command: string) => {
     keymap.dispatchCommand(command)
   }
 
   const slashes = createMemo<SlashEntry[]>(() =>
-    entries().flatMap((entry: any) => {
+    entries().flatMap((entry) => {
       const slashName = entry.command.fields.slashName
       if (typeof slashName !== "string" || !slashName) return []
       const slashAliases = entry.command.fields.slashAliases
@@ -105,12 +112,9 @@ export function useCommandPalette() {
 
 function CommandPaletteDialog(props: { run(command: string): void }) {
   const config = useTuiConfig()
-  const entries = useKeymapSelector((keymap: any) => {
+  const entries = useKeymapSelector((keymap: OpenTuiKeymap) => {
     const query = {
       namespace: "palette",
-      filter(command: { fields: Record<string, unknown> }) {
-        return command.fields.hidden !== true
-      },
     }
 
     const registeredByName = new Map(
@@ -119,7 +123,7 @@ function CommandPaletteDialog(props: { run(command: string): void }) {
           ...query,
           visibility: "registered",
         })
-        .map((entry: any) => [entry.command.name, entry.bindings]),
+        .map((entry) => [entry.command.name, entry.bindings]),
     )
 
     return keymap
@@ -127,14 +131,14 @@ function CommandPaletteDialog(props: { run(command: string): void }) {
         ...query,
         visibility: "reachable",
       })
-      .filter((entry: { command: { name: string } }) => entry.command.name !== COMMAND_PALETTE_DIALOG)
-      .map((entry: any) => ({
+      .filter(isVisiblePaletteCommand)
+      .map((entry) => ({
         ...entry,
         bindings: registeredByName.get(entry.command.name) ?? entry.bindings,
       }))
   })
   const options = createMemo(() =>
-    entries().map((entry: any) => ({
+    entries().map((entry) => ({
       title: typeof entry.command.fields.title === "string" ? entry.command.fields.title : entry.command.name,
       description: typeof entry.command.fields.desc === "string" ? entry.command.fields.desc : undefined,
       category: typeof entry.command.fields.category === "string" ? entry.command.fields.category : undefined,
@@ -147,13 +151,13 @@ function CommandPaletteDialog(props: { run(command: string): void }) {
     })),
   )
 
-  let ref: DialogSelectRef<any>
+  let ref: DialogSelectRef<string>
   const list = () => {
     if (ref?.filter) return options()
     return [
       ...options()
-        .filter((option: any) => option.suggested)
-        .map((option: any) => ({
+        .filter((option) => option.suggested)
+        .map((option) => ({
           ...option,
           value: `suggested:${option.value}`,
           category: "Suggested",

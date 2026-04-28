@@ -143,6 +143,12 @@ export function createTuiPluginApi(opts: Opts = {}): HostPluginApi {
   const keymap =
     opts.keymap ??
     ({
+      acquireResource(_key: symbol, setup: () => () => void) {
+        const dispose = setup()
+        return () => {
+          dispose()
+        }
+      },
       registerLayer() {
         if (count) count.command_add += 1
         return () => {

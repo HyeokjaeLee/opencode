@@ -1,4 +1,4 @@
-import { render, TimeToFirstDraw, useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
+import { render, TimeToFirstDraw, useRenderer, useTerminalDimensions } from "@opentui/solid"
 import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui"
 import * as Clipboard from "@tui/util/clipboard"
 import * as Selection from "@tui/util/selection"
@@ -12,6 +12,7 @@ import {
   ErrorBoundary,
   createSignal,
   onMount,
+  onCleanup,
   batch,
   Show,
   on,
@@ -259,40 +260,16 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
       setReady(true)
     })
 
-  useKeyboard((evt) => {
-    if (!Flag.OPENCODE_EXPERIMENTAL_DISABLE_COPY_ON_SELECT) return
-    const sel = renderer.getSelection()
-    if (!sel) return
-
-    // Windows Terminal-like behavior:
-    // - Ctrl+C copies and dismisses selection
-    // - Esc dismisses selection
-    // - Most other key input dismisses selection and is passed through
-    if (evt.ctrl && evt.name === "c") {
-      if (!Selection.copy(renderer, toast)) {
-        renderer.clearSelection()
-        return
-      }
-
-      evt.preventDefault()
-      evt.stopPropagation()
-      return
-    }
-
-    if (evt.name === "escape") {
-      renderer.clearSelection()
-      evt.preventDefault()
-      evt.stopPropagation()
-      return
-    }
-
-    const focus = renderer.currentFocusedRenderable
-    if (focus?.hasSelection() && sel.selectedRenderables.includes(focus)) {
-      return
-    }
-
-    renderer.clearSelection()
-  })
+  // Let selection copy/dismiss win ahead of normal bindings when the feature flag is on.
+  const offSelectionKeys = keymap.intercept(
+    "key",
+    ({ event }) => {
+      if (!Flag.OPENCODE_EXPERIMENTAL_DISABLE_COPY_ON_SELECT) return
+      Selection.handleSelectionKey(renderer, toast, event)
+    },
+    { priority: 1 },
+  )
+  onCleanup(offSelectionKeys)
 
   // Wire up console copy-to-clipboard via opentui's onCopySelection callback
   renderer.console.onCopySelection = async (text: string) => {

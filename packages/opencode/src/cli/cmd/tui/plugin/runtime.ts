@@ -510,6 +510,9 @@ function pluginApi(runtime: RuntimeState, plugin: PluginEntry, scope: PluginScop
   }
 
   const keymap: TuiPluginApi["keymap"] = Object.assign(Object.create(api.keymap), {
+    acquireResource(...args: Parameters<TuiPluginApi["keymap"]["acquireResource"]>) {
+      return scope.track(api.keymap.acquireResource(...args))
+    },
     registerLayer(...args: Parameters<TuiPluginApi["keymap"]["registerLayer"]>) {
       return scope.track(api.keymap.registerLayer(...args))
     },
