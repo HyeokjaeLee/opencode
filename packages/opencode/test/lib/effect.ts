@@ -3,14 +3,25 @@ import { Cause, Effect, Exit, Layer } from "effect"
 import type * as Scope from "effect/Scope"
 import * as TestClock from "effect/testing/TestClock"
 import * as TestConsole from "effect/testing/TestConsole"
+import { memoMap } from "@opencode-ai/core/effect/memo-map"
 
 type Body<A, E, R> = Effect.Effect<A, E, R> | (() => Effect.Effect<A, E, R>)
 
 const body = <A, E, R>(value: Body<A, E, R>) => Effect.suspend(() => (typeof value === "function" ? value() : value))
 
+// Tests share the global layer memoMap so a layer like `DatabaseEffect.layer`
+// resolves to the same Service value here, in `Database.use`'s runtime, and
+// in any other module-scoped runtime. Without this, a `:memory:` test DB
+// built by the test would be a different instance from the one
+// `Database.use` (sync legacy API) opens.
 const run = <A, E, R, E2>(value: Body<A, E, R | Scope.Scope>, layer: Layer.Layer<R, E2>) =>
   Effect.gen(function* () {
-    const exit = yield* body(value).pipe(Effect.scoped, Effect.provide(layer), Effect.exit)
+    const exit = yield* body(value).pipe(
+      Effect.scoped,
+      Effect.provide(layer),
+      Effect.provideService(Layer.CurrentMemoMap, memoMap),
+      Effect.exit,
+    )
     if (Exit.isFailure(exit)) {
       for (const err of Cause.prettyErrors(exit.cause)) {
         yield* Effect.logError(err)

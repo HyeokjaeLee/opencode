@@ -1,4 +1,5 @@
-import { Layer } from "effect"
+import { Layer, ManagedRuntime } from "effect"
+import { memoMap } from "@opencode-ai/core/effect/memo-map"
 
 import { Plugin } from "@/plugin"
 import { LSP } from "@/lsp/lsp"
@@ -10,9 +11,14 @@ import { Vcs } from "@/project/vcs"
 import { Snapshot } from "@/snapshot"
 import { Bus } from "@/bus"
 import { Config } from "@/config/config"
-import { makeManagedRuntime } from "./managed-runtime"
 import * as Observability from "@opencode-ai/core/effect/observability"
 
+// BootstrapRuntime exists only to break a structural import cycle: AppLayer
+// imports `Worktree.defaultLayer`, and `Worktree.create` needs a runtime to
+// run `InstanceBootstrap` against in a freshly-provided directory. Going
+// through AppRuntime there would form `app-runtime → worktree → app-runtime`.
+// BootstrapRuntime carries the smaller set of services InstanceBootstrap
+// actually requires and imports nothing from `app-runtime.ts`.
 export const BootstrapLayer = Layer.mergeAll(
   Config.defaultLayer,
   Plugin.defaultLayer,
@@ -26,10 +32,15 @@ export const BootstrapLayer = Layer.mergeAll(
   Bus.defaultLayer,
 ).pipe(Layer.provide(Observability.layer))
 
-const rt = makeManagedRuntime(BootstrapLayer)
-type Runtime = Pick<ReturnType<typeof rt>, "runPromise" | "dispose">
+let rt: ManagedRuntime.ManagedRuntime<Layer.Success<typeof BootstrapLayer>, Layer.Error<typeof BootstrapLayer>> | undefined
+const get = () => (rt ??= ManagedRuntime.make(BootstrapLayer, { memoMap }))
+type Runtime = Pick<ReturnType<typeof get>, "runPromise" | "dispose">
 
 export const BootstrapRuntime: Runtime = {
-  runPromise: (effect, options) => rt().runPromise(effect, options),
-  dispose: rt.dispose,
+  runPromise: (effect, options) => get().runPromise(effect, options),
+  async dispose() {
+    const old = rt
+    rt = undefined
+    await old?.dispose()
+  },
 }

@@ -25,8 +25,8 @@ void Log.init({ print: false })
 
 const original = Flag.OPENCODE_EXPERIMENTAL_WORKSPACES
 
-beforeEach(() => {
-  Database.close()
+beforeEach(async () => {
+  await resetDatabase()
   Flag.OPENCODE_EXPERIMENTAL_WORKSPACES = true
 })
 

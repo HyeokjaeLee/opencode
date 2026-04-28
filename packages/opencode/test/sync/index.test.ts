@@ -9,11 +9,12 @@ import { EventTable } from "../../src/sync/event.sql"
 import { Identifier } from "../../src/id/id"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { initProjectors } from "../../src/server/projectors"
+import { resetDatabase } from "../fixture/db"
 
 const original = Flag.OPENCODE_EXPERIMENTAL_WORKSPACES
 
-beforeEach(() => {
-  Database.close()
+beforeEach(async () => {
+  await resetDatabase()
 
   Flag.OPENCODE_EXPERIMENTAL_WORKSPACES = true
 })

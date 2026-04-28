@@ -1,6 +1,6 @@
-import { Layer } from "effect"
+import { Layer, ManagedRuntime } from "effect"
+import { memoMap } from "@opencode-ai/core/effect/memo-map"
 import { attach } from "./run-service"
-import { makeManagedRuntime } from "./managed-runtime"
 import * as Observability from "@opencode-ai/core/effect/observability"
 
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
@@ -97,15 +97,23 @@ export const AppLayer = Layer.mergeAll(
   SessionShare.defaultLayer,
 ).pipe(Layer.provideMerge(Observability.layer))
 
-const rt = makeManagedRuntime(AppLayer)
-type Runtime = Pick<ReturnType<typeof rt>, "runSync" | "runPromise" | "runPromiseExit" | "runFork" | "runCallback" | "dispose">
-const wrap = (effect: Parameters<ReturnType<typeof rt>["runSync"]>[0]) => attach(effect as never) as never
+let rt: ManagedRuntime.ManagedRuntime<Layer.Success<typeof AppLayer>, Layer.Error<typeof AppLayer>> | undefined
+const get = () => (rt ??= ManagedRuntime.make(AppLayer, { memoMap }))
+type Runtime = Pick<
+  ReturnType<typeof get>,
+  "runSync" | "runPromise" | "runPromiseExit" | "runFork" | "runCallback" | "dispose"
+>
+const wrap = (effect: Parameters<ReturnType<typeof get>["runSync"]>[0]) => attach(effect as never) as never
 
 export const AppRuntime: Runtime = {
-  runSync: (effect) => rt().runSync(wrap(effect)),
-  runPromise: (effect, options) => rt().runPromise(wrap(effect), options),
-  runPromiseExit: (effect, options) => rt().runPromiseExit(wrap(effect), options),
-  runFork: (effect) => rt().runFork(wrap(effect)),
-  runCallback: (effect) => rt().runCallback(wrap(effect)),
-  dispose: rt.dispose,
+  runSync: (effect) => get().runSync(wrap(effect)),
+  runPromise: (effect, options) => get().runPromise(wrap(effect), options),
+  runPromiseExit: (effect, options) => get().runPromiseExit(wrap(effect), options),
+  runFork: (effect) => get().runFork(wrap(effect)),
+  runCallback: (effect) => get().runCallback(wrap(effect)),
+  async dispose() {
+    const old = rt
+    rt = undefined
+    await old?.dispose()
+  },
 }

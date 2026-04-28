@@ -107,13 +107,9 @@ export const webHandler = lazy(() =>
 )
 
 export async function disposeWebHandler() {
-  const current = webHandler.peek()
-  if (!current) return
-  try {
-    await current.dispose()
-  } finally {
-    webHandler.resetIf(current)
-  }
+  const old = webHandler.peek()
+  webHandler.reset()
+  await old?.dispose()
 }
 
 export * as ExperimentalHttpApiServer from "./server"

@@ -1,21 +1,14 @@
-import { migrate } from "drizzle-orm/bun-sqlite/migrator"
+import { Effect, ManagedRuntime } from "effect"
 export * from "drizzle-orm"
-import { LocalContext } from "@/util/local-context"
-import { lazy } from "../util/lazy"
-import { Global } from "@opencode-ai/core/global"
-import * as Log from "@opencode-ai/core/util/log"
+import { memoMap } from "@opencode-ai/core/effect/memo-map"
 import { NamedError } from "@opencode-ai/core/util/error"
 import z from "zod"
-import path from "path"
-import { readFileSync, readdirSync, existsSync } from "fs"
-import { Flag } from "@opencode-ai/core/flag/flag"
-import { InstallationChannel } from "@opencode-ai/core/installation/version"
 import { InstanceState } from "@/effect/instance-state"
-import { iife } from "@/util/iife"
-import * as StorageSchema from "@/storage/schema"
-import { init } from "#db"
+import { LocalContext } from "@/util/local-context"
+import { lazy } from "@/util/lazy"
+import { DatabaseEffect } from "./db-effect"
 
-declare const OPENCODE_MIGRATIONS: { sql: string; timestamp: number; name: string }[] | undefined
+export { Path, getChannelPath } from "./db-effect"
 
 export const NotFoundError = NamedError.create(
   "NotFoundError",
@@ -24,104 +17,31 @@ export const NotFoundError = NamedError.create(
   }),
 )
 
-const log = Log.create({ service: "db" })
+// Dedicated runtime that owns the DB layer. It exists separately from
+// AppRuntime/BootstrapRuntime to keep the legacy sync `use` / `transaction`
+// helpers reachable without an import cycle from app-runtime.ts. All three
+// runtimes share the global memoMap so they resolve to the same Service.
+const runtime = lazy(() => ManagedRuntime.make(DatabaseEffect.layer, { memoMap }))
 
-export function getChannelPath() {
-  if (["latest", "beta", "prod"].includes(InstallationChannel) || Flag.OPENCODE_DISABLE_CHANNEL_DB)
-    return path.join(Global.Path.data, "opencode.db")
-  const safe = InstallationChannel.replace(/[^a-zA-Z0-9._-]/g, "-")
-  return path.join(Global.Path.data, `opencode-${safe}.db`)
-}
-
-export const Path = iife(() => {
-  if (Flag.OPENCODE_DB) {
-    if (Flag.OPENCODE_DB === ":memory:" || path.isAbsolute(Flag.OPENCODE_DB)) return Flag.OPENCODE_DB
-    return path.join(Global.Path.data, Flag.OPENCODE_DB)
-  }
-  return getChannelPath()
-})
-
-export type Client = ReturnType<typeof open>
+export type Client = ReturnType<typeof current>
 
 export type Transaction = Parameters<Parameters<Client["transaction"]>[0]>[0]
 
-type Journal = { sql: string; timestamp: number; name: string }[]
-
-function time(tag: string) {
-  const match = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/.exec(tag)
-  if (!match) return 0
-  return Date.UTC(
-    Number(match[1]),
-    Number(match[2]) - 1,
-    Number(match[3]),
-    Number(match[4]),
-    Number(match[5]),
-    Number(match[6]),
-  )
-}
-
-function migrations(dir: string): Journal {
-  const dirs = readdirSync(dir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-
-  const sql = dirs
-    .map((name) => {
-      const file = path.join(dir, name, "migration.sql")
-      if (!existsSync(file)) return
-      return {
-        sql: readFileSync(file, "utf-8"),
-        timestamp: time(name),
-        name,
-      }
-    })
-    .filter(Boolean) as Journal
-
-  return sql.sort((a, b) => a.timestamp - b.timestamp)
-}
-
-export function open() {
-  log.info("opening database", { path: Path })
-
-  const db = init(Path, StorageSchema)
-
-  db.run("PRAGMA journal_mode = WAL")
-  db.run("PRAGMA synchronous = NORMAL")
-  db.run("PRAGMA busy_timeout = 5000")
-  db.run("PRAGMA cache_size = -64000")
-  db.run("PRAGMA foreign_keys = ON")
-  db.run("PRAGMA wal_checkpoint(PASSIVE)")
-
-  // Apply schema migrations
-  const entries =
-    typeof OPENCODE_MIGRATIONS !== "undefined"
-      ? OPENCODE_MIGRATIONS
-      : migrations(path.join(import.meta.dirname, "../../migration"))
-  if (entries.length > 0) {
-    log.info("applying migrations", {
-      count: entries.length,
-      mode: typeof OPENCODE_MIGRATIONS !== "undefined" ? "bundled" : "dev",
-    })
-    if (Flag.OPENCODE_SKIP_MIGRATIONS) {
-      for (const item of entries) {
-        item.sql = "select 1;"
-      }
-    }
-    migrate(db, entries)
-  }
-
-  return db
-}
-
-export const Client = lazy(open)
-
-export function close(client = Client.peek()) {
-  if (!client) return
-  client.$client.close()
-  Client.resetIf(client)
-}
-
 export type TxOrDb = Transaction | Client
+
+function current() {
+  return runtime().runSync(DatabaseEffect.Service.use(Effect.succeed))
+}
+
+// Disposes the dedicated DB runtime so its memoMap reference is released.
+// When every other runtime consuming the layer has also been disposed, the
+// memoMap drops the entry and the layer's finalizer closes the SQLite
+// handle. Used by `test/fixture/db.ts:resetDatabase`.
+export async function close() {
+  const old = runtime.peek()
+  runtime.reset()
+  await old?.dispose()
+}
 
 const ctx = LocalContext.create<{
   tx: TxOrDb
@@ -132,15 +52,13 @@ export function use<T>(callback: (trx: TxOrDb) => T): T {
   try {
     return callback(ctx.use().tx)
   } catch (err) {
-    if (err instanceof LocalContext.NotFound) {
-      const effects: (() => void | Promise<void>)[] = []
-      const client = Client()
-      const result = ctx.provide({ effects, tx: client }, () => callback(client))
-      for (const effect of effects) effect()
-      return result
-    }
-    throw err
+    if (!(err instanceof LocalContext.NotFound)) throw err
   }
+  const db = current()
+  const effects: (() => void | Promise<void>)[] = []
+  const result = ctx.provide({ effects, tx: db }, () => callback(db))
+  for (const effect of effects) effect()
+  return result
 }
 
 export function effect(fn: () => any | Promise<any>) {
@@ -163,15 +81,14 @@ export function transaction<T>(
   try {
     return callback(ctx.use().tx)
   } catch (err) {
-    if (err instanceof LocalContext.NotFound) {
-      const effects: (() => void | Promise<void>)[] = []
-      const txCallback = InstanceState.bind((tx: TxOrDb) => ctx.provide({ tx, effects }, () => callback(tx)))
-      const result = Client().transaction(txCallback, { behavior: options?.behavior })
-      for (const effect of effects) effect()
-      return result as NotPromise<T>
-    }
-    throw err
+    if (!(err instanceof LocalContext.NotFound)) throw err
   }
+  const db = current()
+  const effects: (() => void | Promise<void>)[] = []
+  const txCallback = InstanceState.bind((tx: TxOrDb) => ctx.provide({ tx, effects }, () => callback(tx)))
+  const result = db.transaction(txCallback, { behavior: options?.behavior }) as NotPromise<T>
+  for (const effect of effects) effect()
+  return result
 }
 
 export * as Database from "./db"
