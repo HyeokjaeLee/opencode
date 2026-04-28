@@ -1,8 +1,8 @@
 /** @jsxImportSource @opentui/solid */
-import { useKeyboard, useTerminalDimensions, type JSX } from "@opentui/solid"
+import { useTerminalDimensions, type JSX } from "@opentui/solid"
+import { useBindings } from "@opentui/keymap/solid"
 import { RGBA, VignetteEffect } from "@opentui/core"
 import type {
-  TuiKeybindSet,
   TuiPlugin,
   TuiPluginApi,
   TuiPluginMeta,
@@ -31,6 +31,8 @@ const bind = {
   local_close: "q,backspace",
   host: "z",
 }
+
+type KeyName = keyof typeof bind
 
 const pick = (value: unknown, fallback: string) => {
   if (typeof value !== "string") return fallback
@@ -85,7 +87,28 @@ const names = (input: Cfg) => {
   }
 }
 
-type Keys = TuiKeybindSet
+function printKey(value: string) {
+  return (value.split(",")[0] ?? "").trim().replace(/^return$/, "enter")
+}
+
+function createKeys(overrides: Record<string, unknown> | undefined) {
+  const all = Object.fromEntries(
+    Object.entries(bind).map(([name, fallback]) => [name, pick(overrides?.[name], fallback)]),
+  ) as Record<KeyName, string>
+
+  return {
+    all,
+    get(name: KeyName) {
+      return all[name]
+    },
+    print(name: KeyName) {
+      return printKey(all[name])
+    },
+  }
+}
+
+type Keys = ReturnType<typeof createKeys>
+
 const ui = {
   panel: "#1d1d1d",
   border: "#4a4a4a",
@@ -300,119 +323,139 @@ const Screen = (props: {
       open()
     }, 0)
   }
-  useKeyboard((evt) => {
-    if (props.api.route.current.name !== props.route.screen) return
-    const next = current(props.api, props.route)
-    if (props.api.ui.dialog.open) {
-      if (props.keys.match("dialog_close", evt)) {
-        evt.preventDefault()
-        evt.stopPropagation()
-        props.api.ui.dialog.clear()
-        return
-      }
-      return
-    }
+  const screenActive = () => props.api.route.current.name === props.route.screen
 
-    if (next.local > 0) {
-      if (evt.name === "escape" || props.keys.match("local_close", evt)) {
-        evt.preventDefault()
-        evt.stopPropagation()
-        pop(next)
-        return
-      }
+  useBindings(() => ({
+    enabled: () => screenActive() && props.api.ui.dialog.open,
+    commands: [
+      {
+        name: "plugin.smoke.dialog.close",
+        run() {
+          props.api.ui.dialog.clear()
+        },
+      },
+    ],
+    bindings: [{ key: props.keys.get("dialog_close"), cmd: "plugin.smoke.dialog.close", desc: "Close dialog" }],
+  }))
 
-      if (props.keys.match("local_push", evt)) {
-        evt.preventDefault()
-        evt.stopPropagation()
-        push(next)
-        return
-      }
-      return
-    }
+  useBindings(() => ({
+    enabled: () => screenActive() && !props.api.ui.dialog.open && current(props.api, props.route).local > 0,
+    commands: [
+      {
+        name: "plugin.smoke.local.push",
+        run() {
+          push(current(props.api, props.route))
+        },
+      },
+      {
+        name: "plugin.smoke.local.pop",
+        run() {
+          pop(current(props.api, props.route))
+        },
+      },
+    ],
+    bindings: [
+      { key: "escape", cmd: "plugin.smoke.local.pop", desc: "Close local overlay" },
+      { key: props.keys.get("local_close"), cmd: "plugin.smoke.local.pop", desc: "Close local overlay" },
+      { key: props.keys.get("local_push"), cmd: "plugin.smoke.local.push", desc: "Push local overlay" },
+    ],
+  }))
 
-    if (props.keys.match("home", evt)) {
-      evt.preventDefault()
-      evt.stopPropagation()
-      props.api.route.navigate("home")
-      return
-    }
-
-    if (props.keys.match("left", evt)) {
-      evt.preventDefault()
-      evt.stopPropagation()
-      props.api.route.navigate(props.route.screen, { ...next, tab: (next.tab - 1 + tabs.length) % tabs.length })
-      return
-    }
-
-    if (props.keys.match("right", evt)) {
-      evt.preventDefault()
-      evt.stopPropagation()
-      props.api.route.navigate(props.route.screen, { ...next, tab: (next.tab + 1) % tabs.length })
-      return
-    }
-
-    if (props.keys.match("up", evt)) {
-      evt.preventDefault()
-      evt.stopPropagation()
-      props.api.route.navigate(props.route.screen, { ...next, count: next.count + 1 })
-      return
-    }
-
-    if (props.keys.match("down", evt)) {
-      evt.preventDefault()
-      evt.stopPropagation()
-      props.api.route.navigate(props.route.screen, { ...next, count: next.count - 1 })
-      return
-    }
-
-    if (props.keys.match("modal", evt)) {
-      evt.preventDefault()
-      evt.stopPropagation()
-      props.api.route.navigate(props.route.modal, next)
-      return
-    }
-
-    if (props.keys.match("local", evt)) {
-      evt.preventDefault()
-      evt.stopPropagation()
-      open()
-      return
-    }
-
-    if (props.keys.match("host", evt)) {
-      evt.preventDefault()
-      evt.stopPropagation()
-      host(props.api, props.input, skin)
-      return
-    }
-
-    if (props.keys.match("alert", evt)) {
-      evt.preventDefault()
-      evt.stopPropagation()
-      warn(props.api, props.route, next)
-      return
-    }
-
-    if (props.keys.match("confirm", evt)) {
-      evt.preventDefault()
-      evt.stopPropagation()
-      check(props.api, props.route, next)
-      return
-    }
-
-    if (props.keys.match("prompt", evt)) {
-      evt.preventDefault()
-      evt.stopPropagation()
-      entry(props.api, props.route, next)
-      return
-    }
-
-    if (props.keys.match("select", evt)) {
-      evt.preventDefault()
-      evt.stopPropagation()
-      picker(props.api, props.route, next)
-    }
-  })
+  useBindings(() => ({
+    enabled: () => screenActive() && !props.api.ui.dialog.open && current(props.api, props.route).local === 0,
+    commands: [
+      {
+        name: "plugin.smoke.screen.home",
+        run() {
+          props.api.route.navigate("home")
+        },
+      },
+      {
+        name: "plugin.smoke.screen.left",
+        run() {
+          const next = current(props.api, props.route)
+          props.api.route.navigate(props.route.screen, { ...next, tab: (next.tab - 1 + tabs.length) % tabs.length })
+        },
+      },
+      {
+        name: "plugin.smoke.screen.right",
+        run() {
+          const next = current(props.api, props.route)
+          props.api.route.navigate(props.route.screen, { ...next, tab: (next.tab + 1) % tabs.length })
+        },
+      },
+      {
+        name: "plugin.smoke.screen.up",
+        run() {
+          const next = current(props.api, props.route)
+          props.api.route.navigate(props.route.screen, { ...next, count: next.count + 1 })
+        },
+      },
+      {
+        name: "plugin.smoke.screen.down",
+        run() {
+          const next = current(props.api, props.route)
+          props.api.route.navigate(props.route.screen, { ...next, count: next.count - 1 })
+        },
+      },
+      {
+        name: "plugin.smoke.screen.modal",
+        run() {
+          props.api.route.navigate(props.route.modal, current(props.api, props.route))
+        },
+      },
+      {
+        name: "plugin.smoke.screen.local",
+        run() {
+          open()
+        },
+      },
+      {
+        name: "plugin.smoke.screen.host",
+        run() {
+          host(props.api, props.input, skin)
+        },
+      },
+      {
+        name: "plugin.smoke.screen.alert",
+        run() {
+          warn(props.api, props.route, current(props.api, props.route))
+        },
+      },
+      {
+        name: "plugin.smoke.screen.confirm",
+        run() {
+          check(props.api, props.route, current(props.api, props.route))
+        },
+      },
+      {
+        name: "plugin.smoke.screen.prompt",
+        run() {
+          entry(props.api, props.route, current(props.api, props.route))
+        },
+      },
+      {
+        name: "plugin.smoke.screen.select",
+        run() {
+          picker(props.api, props.route, current(props.api, props.route))
+        },
+      },
+    ],
+    bindings: [
+      { key: props.keys.get("home"), cmd: "plugin.smoke.screen.home", desc: "Go home" },
+      { key: props.keys.get("left"), cmd: "plugin.smoke.screen.left", desc: "Previous tab" },
+      { key: props.keys.get("right"), cmd: "plugin.smoke.screen.right", desc: "Next tab" },
+      { key: props.keys.get("up"), cmd: "plugin.smoke.screen.up", desc: "Increment counter" },
+      { key: props.keys.get("down"), cmd: "plugin.smoke.screen.down", desc: "Decrement counter" },
+      { key: props.keys.get("modal"), cmd: "plugin.smoke.screen.modal", desc: "Open modal" },
+      { key: props.keys.get("local"), cmd: "plugin.smoke.screen.local", desc: "Open local overlay" },
+      { key: props.keys.get("host"), cmd: "plugin.smoke.screen.host", desc: "Open host overlay" },
+      { key: props.keys.get("alert"), cmd: "plugin.smoke.screen.alert", desc: "Open alert dialog" },
+      { key: props.keys.get("confirm"), cmd: "plugin.smoke.screen.confirm", desc: "Open confirm dialog" },
+      { key: props.keys.get("prompt"), cmd: "plugin.smoke.screen.prompt", desc: "Open prompt dialog" },
+      { key: props.keys.get("select"), cmd: "plugin.smoke.screen.select", desc: "Open select dialog" },
+    ],
+  }))
 
   return (
     <box width={dim().width} height={dim().height} backgroundColor={skin.panel} position="relative">
@@ -571,22 +614,27 @@ const Modal = (props: {
   const value = parse(props.params)
   const skin = tone(props.api)
 
-  useKeyboard((evt) => {
-    if (props.api.route.current.name !== props.route.modal) return
-
-    if (props.keys.match("modal_accept", evt)) {
-      evt.preventDefault()
-      evt.stopPropagation()
-      props.api.route.navigate(props.route.screen, { ...value, source: "modal" })
-      return
-    }
-
-    if (props.keys.match("modal_close", evt)) {
-      evt.preventDefault()
-      evt.stopPropagation()
-      props.api.route.navigate("home")
-    }
-  })
+  useBindings(() => ({
+    enabled: () => props.api.route.current.name === props.route.modal,
+    commands: [
+      {
+        name: "plugin.smoke.modal.accept",
+        run() {
+          props.api.route.navigate(props.route.screen, { ...parse(props.params), source: "modal" })
+        },
+      },
+      {
+        name: "plugin.smoke.modal.close",
+        run() {
+          props.api.route.navigate("home")
+        },
+      },
+    ],
+    bindings: [
+      { key: props.keys.get("modal_accept"), cmd: "plugin.smoke.modal.accept", desc: "Open screen" },
+      { key: props.keys.get("modal_close"), cmd: "plugin.smoke.modal.close", desc: "Close modal" },
+    ],
+  }))
 
   return (
     <box width="100%" height="100%" backgroundColor={skin.panel}>
@@ -791,109 +839,108 @@ const slot = (api: TuiPluginApi, input: Cfg): TuiSlotPlugin[] => [
 
 const reg = (api: TuiPluginApi, input: Cfg, keys: Keys) => {
   const route = names(input)
-  api.command.register(() => [
-    {
-      title: `${input.label} modal`,
-      value: "plugin.smoke.modal",
-      keybind: keys.get("modal"),
-      category: "Plugin",
-      slash: {
-        name: "smoke",
+  api.keymap.registerLayer({
+    commands: [
+      {
+        name: "plugin.smoke.modal",
+        title: `${input.label} modal`,
+        category: "Plugin",
+        namespace: "palette",
+        slashName: "smoke",
+        run() {
+          api.route.navigate(route.modal, { source: "command" })
+        },
       },
-      onSelect: () => {
-        api.route.navigate(route.modal, { source: "command" })
+      {
+        name: "plugin.smoke.screen",
+        title: `${input.label} screen`,
+        category: "Plugin",
+        namespace: "palette",
+        slashName: "smoke-screen",
+        run() {
+          api.route.navigate(route.screen, { source: "command", tab: 0, count: 0 })
+        },
       },
-    },
-    {
-      title: `${input.label} screen`,
-      value: "plugin.smoke.screen",
-      keybind: keys.get("screen"),
-      category: "Plugin",
-      slash: {
-        name: "smoke-screen",
+      {
+        name: "plugin.smoke.alert",
+        title: `${input.label} alert dialog`,
+        category: "Plugin",
+        namespace: "palette",
+        slashName: "smoke-alert",
+        run() {
+          warn(api, route, current(api, route))
+        },
       },
-      onSelect: () => {
-        api.route.navigate(route.screen, { source: "command", tab: 0, count: 0 })
+      {
+        name: "plugin.smoke.confirm",
+        title: `${input.label} confirm dialog`,
+        category: "Plugin",
+        namespace: "palette",
+        slashName: "smoke-confirm",
+        run() {
+          check(api, route, current(api, route))
+        },
       },
-    },
-    {
-      title: `${input.label} alert dialog`,
-      value: "plugin.smoke.alert",
-      category: "Plugin",
-      slash: {
-        name: "smoke-alert",
+      {
+        name: "plugin.smoke.prompt",
+        title: `${input.label} prompt dialog`,
+        category: "Plugin",
+        namespace: "palette",
+        slashName: "smoke-prompt",
+        run() {
+          entry(api, route, current(api, route))
+        },
       },
-      onSelect: () => {
-        warn(api, route, current(api, route))
+      {
+        name: "plugin.smoke.select",
+        title: `${input.label} select dialog`,
+        category: "Plugin",
+        namespace: "palette",
+        slashName: "smoke-select",
+        run() {
+          picker(api, route, current(api, route))
+        },
       },
-    },
-    {
-      title: `${input.label} confirm dialog`,
-      value: "plugin.smoke.confirm",
-      category: "Plugin",
-      slash: {
-        name: "smoke-confirm",
+      {
+        name: "plugin.smoke.host",
+        title: `${input.label} host overlay`,
+        category: "Plugin",
+        namespace: "palette",
+        slashName: "smoke-host",
+        run() {
+          host(api, input, tone(api))
+        },
       },
-      onSelect: () => {
-        check(api, route, current(api, route))
+      {
+        name: "plugin.smoke.home",
+        title: `${input.label} go home`,
+        category: "Plugin",
+        namespace: "palette",
+        enabled: () => api.route.current.name !== "home",
+        run() {
+          api.route.navigate("home")
+        },
       },
-    },
-    {
-      title: `${input.label} prompt dialog`,
-      value: "plugin.smoke.prompt",
-      category: "Plugin",
-      slash: {
-        name: "smoke-prompt",
+      {
+        name: "plugin.smoke.toast",
+        title: `${input.label} toast`,
+        category: "Plugin",
+        namespace: "palette",
+        run() {
+          api.ui.toast({
+            variant: "info",
+            title: "Smoke",
+            message: "Plugin toast works",
+            duration: 2000,
+          })
+        },
       },
-      onSelect: () => {
-        entry(api, route, current(api, route))
-      },
-    },
-    {
-      title: `${input.label} select dialog`,
-      value: "plugin.smoke.select",
-      category: "Plugin",
-      slash: {
-        name: "smoke-select",
-      },
-      onSelect: () => {
-        picker(api, route, current(api, route))
-      },
-    },
-    {
-      title: `${input.label} host overlay`,
-      value: "plugin.smoke.host",
-      category: "Plugin",
-      slash: {
-        name: "smoke-host",
-      },
-      onSelect: () => {
-        host(api, input, tone(api))
-      },
-    },
-    {
-      title: `${input.label} go home`,
-      value: "plugin.smoke.home",
-      category: "Plugin",
-      enabled: api.route.current.name !== "home",
-      onSelect: () => {
-        api.route.navigate("home")
-      },
-    },
-    {
-      title: `${input.label} toast`,
-      value: "plugin.smoke.toast",
-      category: "Plugin",
-      onSelect: () => {
-        api.ui.toast({
-          variant: "info",
-          title: "Smoke",
-          message: "Plugin toast works",
-          duration: 2000,
-        })
-      },
-    },
-  ])
+    ],
+    bindings: [
+      { key: keys.get("modal"), cmd: "plugin.smoke.modal", desc: `${input.label} modal` },
+      { key: keys.get("screen"), cmd: "plugin.smoke.screen", desc: `${input.label} screen` },
+    ],
+  })
 }
 
 const tui: TuiPlugin = async (api, options, meta) => {
@@ -904,7 +951,7 @@ const tui: TuiPlugin = async (api, options, meta) => {
 
   const value = cfg(options ?? undefined)
   const route = names(value)
-  const keys = api.keybind.create(bind, value.keybinds)
+  const keys = createKeys(value.keybinds)
   const fx = new VignetteEffect(value.vignette)
   const post = fx.apply.bind(fx)
   api.renderer.addPostProcessFn(post)

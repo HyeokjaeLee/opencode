@@ -15,7 +15,8 @@ import type {
   TextPart,
   Config as SdkConfig,
 } from "@opencode-ai/sdk/v2"
-import type { CliRenderer, ParsedKey, RGBA, SlotMode } from "@opentui/core"
+import type { CliRenderer, KeyEvent, RGBA, Renderable, SlotMode } from "@opentui/core"
+import type { Keymap } from "@opentui/keymap"
 import type { JSX, SolidPlugin } from "@opentui/solid"
 import type { Config as PluginConfig, PluginOptions } from "./index.js"
 
@@ -42,39 +43,7 @@ export type TuiRouteDefinition = {
   render: (input: { params?: Record<string, unknown> }) => JSX.Element
 }
 
-export type TuiCommand = {
-  title: string
-  value: string
-  description?: string
-  category?: string
-  keybind?: string
-  suggested?: boolean
-  hidden?: boolean
-  enabled?: boolean
-  slash?: {
-    name: string
-    aliases?: string[]
-  }
-  onSelect?: () => void
-}
-
-export type TuiKeybind = {
-  name: string
-  ctrl: boolean
-  meta: boolean
-  shift: boolean
-  super?: boolean
-  leader: boolean
-}
-
-export type TuiKeybindMap = Record<string, string>
-
-export type TuiKeybindSet = {
-  readonly all: TuiKeybindMap
-  get: (name: string) => string
-  match: (name: string, evt: ParsedKey) => boolean
-  print: (name: string) => string
-}
+export type TuiKeymap = Keymap<Renderable, KeyEvent>
 
 export type TuiDialogProps = {
   size?: "medium" | "large" | "xlarge"
@@ -448,11 +417,7 @@ export type TuiWorkspace = {
 
 export type TuiPluginApi = {
   app: TuiApp
-  command: {
-    register: (cb: () => TuiCommand[]) => () => void
-    trigger: (value: string) => void
-    show: () => void
-  }
+  keymap: TuiKeymap
   route: {
     register: (routes: TuiRouteDefinition[]) => () => void
     navigate: (name: string, params?: Record<string, unknown>) => void
@@ -468,11 +433,6 @@ export type TuiPluginApi = {
     Prompt: (props: TuiPromptProps) => JSX.Element
     toast: (input: TuiToast) => void
     dialog: TuiDialogStack
-  }
-  keybind: {
-    match: (key: string, evt: ParsedKey) => boolean
-    print: (key: string) => string
-    create: (defaults: TuiKeybindMap, overrides?: Record<string, unknown>) => TuiKeybindSet
   }
   readonly tuiConfig: Frozen<TuiConfigView>
   kv: TuiKV

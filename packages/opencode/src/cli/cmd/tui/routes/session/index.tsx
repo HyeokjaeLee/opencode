@@ -48,12 +48,10 @@ import type { WebSearchTool } from "@/tool/websearch"
 import type { TaskTool } from "@/tool/task"
 import type { QuestionTool } from "@/tool/question"
 import type { SkillTool } from "@/tool/skill"
-import { useKeyboard, useRenderer, useTerminalDimensions, type JSX } from "@opentui/solid"
+import { useRenderer, useTerminalDimensions, type JSX } from "@opentui/solid"
 import { useSDK } from "@tui/context/sdk"
 import { useEditorContext } from "@tui/context/editor"
-import { useCommandDialog } from "@tui/component/dialog-command"
 import type { DialogContext } from "@tui/ui/dialog"
-import { useKeybind } from "@tui/context/keybind"
 import { useDialog } from "../../ui/dialog"
 import { TodoItem } from "../../component/todo-item"
 import { DialogMessage } from "./dialog-message"
@@ -89,6 +87,8 @@ import { TuiPluginRuntime } from "@/cli/cmd/tui/plugin/runtime"
 import { DialogGoUpsell } from "../../component/dialog-go-upsell"
 import { SessionRetry } from "@/session/retry"
 import { getRevertDiffFiles } from "../../util/revert-diff"
+import { useCommandPalette } from "../../context/command-palette"
+import { resolveBindingKey, useBindings, useCommandShortcut } from "../../keymap"
 
 addDefaultParsers(parsers.parsers)
 
@@ -249,7 +249,7 @@ export function Session() {
     seeded = true
     r.set(route.prompt)
   }
-  const keybind = useKeybind()
+  const command = useCommandPalette()
   const dialog = useDialog()
   const renderer = useRenderer()
 
@@ -270,7 +270,6 @@ export function Session() {
     })
   })
 
-  // Allow exit when in child session (prompt is hidden)
   const exit = useExit()
 
   createEffect(() => {
@@ -290,13 +289,6 @@ export function Session() {
         ``,
       ].join("\n"),
     )
-  })
-
-  useKeyboard((evt) => {
-    if (!session()?.parentID) return
-    if (keybind.match("app_exit", evt)) {
-      void exit()
-    }
   })
 
   // Helper: Find next visible message boundary in direction
@@ -381,15 +373,14 @@ export function Session() {
     }
   }
 
-  function childSessionHandler(func: (dialog: DialogContext) => void) {
-    return (dialog: DialogContext) => {
+  function childSessionHandler(func: () => void) {
+    return () => {
       if (!session()?.parentID || dialog.stack.length > 0) return
-      func(dialog)
+      func()
     }
   }
 
-  const command = useCommandDialog()
-  command.register(() => [
+  const sessionCommandList = createMemo(() => [
     {
       title: session()?.share?.url ? "Copy share link" : "Share session",
       value: "session.share",
@@ -400,7 +391,7 @@ export function Session() {
       slash: {
         name: "share",
       },
-      onSelect: async (dialog) => {
+      run: async () => {
         const copy = (url: string) =>
           Clipboard.copy(url)
             .then(() => toast.show({ message: "Share URL copied to clipboard!", variant: "success" }))
@@ -438,7 +429,7 @@ export function Session() {
       slash: {
         name: "rename",
       },
-      onSelect: (dialog) => {
+      run: () => {
         dialog.replace(() => <DialogSessionRename session={route.sessionID} />)
       },
     },
@@ -450,7 +441,7 @@ export function Session() {
       slash: {
         name: "timeline",
       },
-      onSelect: (dialog) => {
+      run: () => {
         dialog.replace(() => (
           <DialogTimeline
             onMove={(messageID) => {
@@ -473,7 +464,7 @@ export function Session() {
       slash: {
         name: "fork",
       },
-      onSelect: (dialog) => {
+      run: () => {
         dialog.replace(() => (
           <DialogForkFromTimeline
             onMove={(messageID) => {
@@ -497,7 +488,7 @@ export function Session() {
         name: "compact",
         aliases: ["summarize"],
       },
-      onSelect: (dialog) => {
+      run: () => {
         const selectedModel = local.model.current()
         if (!selectedModel) {
           toast.show({
@@ -524,7 +515,7 @@ export function Session() {
       slash: {
         name: "unshare",
       },
-      onSelect: async (dialog) => {
+      run: async () => {
         await sdk.client.session
           .unshare({
             sessionID: route.sessionID,
@@ -547,7 +538,7 @@ export function Session() {
       slash: {
         name: "undo",
       },
-      onSelect: async (dialog) => {
+      run: async () => {
         const status = sync.data.session_status?.[route.sessionID]
         if (status?.type !== "idle") await sdk.client.session.abort({ sessionID: route.sessionID }).catch(() => {})
         const revert = session()?.revert?.messageID
@@ -586,7 +577,7 @@ export function Session() {
       slash: {
         name: "redo",
       },
-      onSelect: (dialog) => {
+      run: () => {
         dialog.clear()
         const messageID = session()?.revert?.messageID
         if (!messageID) return
@@ -609,7 +600,7 @@ export function Session() {
       value: "session.sidebar.toggle",
       keybind: "sidebar_toggle",
       category: "Session",
-      onSelect: (dialog) => {
+      run: () => {
         batch(() => {
           const isVisible = sidebarVisible()
           setSidebar(() => (isVisible ? "hide" : "auto"))
@@ -623,7 +614,7 @@ export function Session() {
       value: "session.toggle.conceal",
       keybind: "messages_toggle_conceal",
       category: "Session",
-      onSelect: (dialog) => {
+      run: () => {
         setConceal((prev) => !prev)
         dialog.clear()
       },
@@ -636,7 +627,7 @@ export function Session() {
         name: "timestamps",
         aliases: ["toggle-timestamps"],
       },
-      onSelect: (dialog) => {
+      run: () => {
         setTimestamps((prev) => (prev === "show" ? "hide" : "show"))
         dialog.clear()
       },
@@ -650,7 +641,7 @@ export function Session() {
         name: "thinking",
         aliases: ["toggle-thinking"],
       },
-      onSelect: (dialog) => {
+      run: () => {
         setShowThinking((prev) => !prev)
         dialog.clear()
       },
@@ -660,7 +651,7 @@ export function Session() {
       value: "session.toggle.actions",
       keybind: "tool_details",
       category: "Session",
-      onSelect: (dialog) => {
+      run: () => {
         setShowDetails((prev) => !prev)
         dialog.clear()
       },
@@ -670,7 +661,7 @@ export function Session() {
       value: "session.toggle.scrollbar",
       keybind: "scrollbar_toggle",
       category: "Session",
-      onSelect: (dialog) => {
+      run: () => {
         setShowScrollbar((prev) => !prev)
         dialog.clear()
       },
@@ -679,7 +670,7 @@ export function Session() {
       title: showGenericToolOutput() ? "Hide generic tool output" : "Show generic tool output",
       value: "session.toggle.generic_tool_output",
       category: "Session",
-      onSelect: (dialog) => {
+      run: () => {
         setShowGenericToolOutput((prev) => !prev)
         dialog.clear()
       },
@@ -690,7 +681,7 @@ export function Session() {
       keybind: "messages_page_up",
       category: "Session",
       hidden: true,
-      onSelect: (dialog) => {
+      run: () => {
         scroll.scrollBy(-scroll.height / 2)
         dialog.clear()
       },
@@ -701,7 +692,7 @@ export function Session() {
       keybind: "messages_page_down",
       category: "Session",
       hidden: true,
-      onSelect: (dialog) => {
+      run: () => {
         scroll.scrollBy(scroll.height / 2)
         dialog.clear()
       },
@@ -711,8 +702,8 @@ export function Session() {
       value: "session.line.up",
       keybind: "messages_line_up",
       category: "Session",
-      disabled: true,
-      onSelect: (dialog) => {
+      enabled: false,
+      run: () => {
         scroll.scrollBy(-1)
         dialog.clear()
       },
@@ -722,8 +713,8 @@ export function Session() {
       value: "session.line.down",
       keybind: "messages_line_down",
       category: "Session",
-      disabled: true,
-      onSelect: (dialog) => {
+      enabled: false,
+      run: () => {
         scroll.scrollBy(1)
         dialog.clear()
       },
@@ -734,7 +725,7 @@ export function Session() {
       keybind: "messages_half_page_up",
       category: "Session",
       hidden: true,
-      onSelect: (dialog) => {
+      run: () => {
         scroll.scrollBy(-scroll.height / 4)
         dialog.clear()
       },
@@ -745,7 +736,7 @@ export function Session() {
       keybind: "messages_half_page_down",
       category: "Session",
       hidden: true,
-      onSelect: (dialog) => {
+      run: () => {
         scroll.scrollBy(scroll.height / 4)
         dialog.clear()
       },
@@ -756,7 +747,7 @@ export function Session() {
       keybind: "messages_first",
       category: "Session",
       hidden: true,
-      onSelect: (dialog) => {
+      run: () => {
         scroll.scrollTo(0)
         dialog.clear()
       },
@@ -767,7 +758,7 @@ export function Session() {
       keybind: "messages_last",
       category: "Session",
       hidden: true,
-      onSelect: (dialog) => {
+      run: () => {
         scroll.scrollTo(scroll.scrollHeight)
         dialog.clear()
       },
@@ -778,7 +769,7 @@ export function Session() {
       keybind: "messages_last_user",
       category: "Session",
       hidden: true,
-      onSelect: () => {
+      run: () => {
         const messages = sync.data.message[route.sessionID]
         if (!messages || !messages.length) return
 
@@ -810,7 +801,7 @@ export function Session() {
       keybind: "messages_next",
       category: "Session",
       hidden: true,
-      onSelect: (dialog) => scrollToMessage("next", dialog),
+      run: () => scrollToMessage("next", dialog),
     },
     {
       title: "Previous message",
@@ -818,14 +809,14 @@ export function Session() {
       keybind: "messages_previous",
       category: "Session",
       hidden: true,
-      onSelect: (dialog) => scrollToMessage("prev", dialog),
+      run: () => scrollToMessage("prev", dialog),
     },
     {
       title: "Copy last assistant message",
       value: "messages.copy",
       keybind: "messages_copy",
       category: "Session",
-      onSelect: (dialog) => {
+      run: () => {
         const revertID = session()?.revert?.messageID
         const lastAssistantMessage = messages().findLast(
           (msg) => msg.role === "assistant" && (!revertID || msg.id < revertID),
@@ -870,7 +861,7 @@ export function Session() {
       slash: {
         name: "copy",
       },
-      onSelect: async (dialog) => {
+      run: async () => {
         try {
           const sessionData = session()
           if (!sessionData) return
@@ -901,7 +892,7 @@ export function Session() {
       slash: {
         name: "export",
       },
-      onSelect: async (dialog) => {
+      run: async () => {
         try {
           const sessionData = session()
           if (!sessionData) return
@@ -961,7 +952,7 @@ export function Session() {
       keybind: "session_child_first",
       category: "Session",
       hidden: true,
-      onSelect: (dialog) => {
+      run: () => {
         moveFirstChild()
         dialog.clear()
       },
@@ -973,7 +964,7 @@ export function Session() {
       category: "Session",
       hidden: true,
       enabled: !!session()?.parentID,
-      onSelect: childSessionHandler((dialog) => {
+      run: childSessionHandler(() => {
         const parentID = session()?.parentID
         if (parentID) {
           navigate({
@@ -991,7 +982,7 @@ export function Session() {
       category: "Session",
       hidden: true,
       enabled: !!session()?.parentID,
-      onSelect: childSessionHandler((dialog) => {
+      run: childSessionHandler(() => {
         moveChild(1)
         dialog.clear()
       }),
@@ -1003,12 +994,41 @@ export function Session() {
       category: "Session",
       hidden: true,
       enabled: !!session()?.parentID,
-      onSelect: childSessionHandler((dialog) => {
+      run: childSessionHandler(() => {
         moveChild(-1)
         dialog.clear()
       }),
     },
   ])
+
+  const sessionCommands = createMemo(() =>
+    sessionCommandList().map((command) => ({
+      namespace: "palette",
+      name: command.value,
+      desc: "description" in command ? command.description : undefined,
+      slashName: "slash" in command ? command.slash?.name : undefined,
+      slashAliases: "slash" in command ? command.slash?.aliases : undefined,
+      ...command,
+    })),
+  )
+
+  useBindings(() => ({
+    commands: sessionCommands(),
+  }))
+
+  useBindings(() => ({
+    enabled: command.matcher,
+    bindings: sessionCommandList().flatMap((command) => {
+      const key = resolveBindingKey(tuiConfig, command.keybind)
+      if (!key) return []
+      const desc = "description" in command ? command.description : undefined
+      return {
+        key,
+        cmd: command.value,
+        desc: desc ?? command.title,
+      }
+    }),
+  }))
 
   const revertInfo = createMemo(() => session()?.revert)
   const revertMessageID = createMemo(() => revertInfo()?.messageID)
@@ -1081,7 +1101,8 @@ export function Session() {
                   <Switch>
                     <Match when={message.id === revert()?.messageID}>
                       {(function () {
-                        const command = useCommandDialog()
+                        const command = useCommandPalette()
+                        const redoShortcut = useCommandShortcut("session.redo")
                         const [hover, setHover] = createSignal(false)
                         const dialog = useDialog()
 
@@ -1092,7 +1113,7 @@ export function Session() {
                             "Are you sure you want to restore the reverted messages?",
                           )
                           if (confirmed) {
-                            command.trigger("session.redo")
+                            command.run("session.redo")
                           }
                         }
 
@@ -1115,7 +1136,7 @@ export function Session() {
                             >
                               <text fg={theme.textMuted}>{revert()!.reverted.length} message reverted</text>
                               <text fg={theme.textMuted}>
-                                <span style={{ fg: theme.text }}>{keybind.print("messages_redo")}</span> or /redo to
+                                <span style={{ fg: theme.text }}>{redoShortcut()}</span> or /redo to
                                 restore
                               </text>
                               <Show when={revert()!.diffFiles?.length}>
@@ -1369,7 +1390,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
     return props.message.time.completed - user.time.created
   })
 
-  const keybind = useKeybind()
+  const childShortcut = useCommandShortcut("session.child.first")
 
   return (
     <>
@@ -1391,7 +1412,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
       <Show when={props.parts.some((x) => x.type === "tool" && x.tool === "task")}>
         <box paddingTop={1} paddingLeft={3}>
           <text fg={theme.text}>
-            {keybind.print("session_child_first")}
+            {childShortcut()}
             <span style={{ fg: theme.textMuted }}> view subagents</span>
           </text>
         </box>
