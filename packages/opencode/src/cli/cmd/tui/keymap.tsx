@@ -155,15 +155,6 @@ export function useCommandShortcut(command: string): Accessor<string> {
   return useKeymapSelector(firstRegisteredBinding(command, config))
 }
 
-export function useCommandSequence(command: string): Accessor<readonly KeySequencePart[] | undefined> {
-  return useKeymapSelector((keymap: OpenTuiKeymap) => {
-    const entry = keymap
-      .getCommandEntries({ visibility: "registered" })
-      .find((candidate: { command: { name: string } }) => candidate.command.name === command)
-    return entry?.bindings[0]?.sequence
-  })
-}
-
 export function useLeaderActive(): Accessor<boolean> {
   return useKeymapSelector((keymap: OpenTuiKeymap) => keymap.getPendingSequence()[0]?.tokenName === LEADER_TOKEN)
 }
@@ -173,8 +164,4 @@ export function useDispatchCommand() {
   return (command: string) => {
     keymap.dispatchCommand(command)
   }
-}
-
-export function useCommandEntries() {
-  return useKeymapSelector((keymap: OpenTuiKeymap) => keymap.getCommandEntries({ visibility: "reachable" }))
 }
