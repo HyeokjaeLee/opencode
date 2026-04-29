@@ -1,7 +1,7 @@
 import { InputRenderable, RGBA, ScrollBoxRenderable, TextAttributes } from "@opentui/core"
 import { useTheme, selectedForeground } from "@tui/context/theme"
 import { entries, filter, flatMap, groupBy, pipe } from "remeda"
-import { batch, createEffect, createMemo, createUniqueId, For, Show, type JSX, on } from "solid-js"
+import { batch, createEffect, createMemo, For, Show, type JSX, on } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useTerminalDimensions } from "@opentui/solid"
 import * as fuzzysort from "fuzzysort"
@@ -56,7 +56,6 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
   const { theme } = useTheme()
   const tuiConfig = useTuiConfig()
   const scrollAcceleration = createMemo(() => getScrollAcceleration(tuiConfig))
-  const id = createUniqueId()
 
   const [store, setStore] = createStore({
     selected: 0,
@@ -83,7 +82,7 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
   const actions = createMemo(() =>
     (props.actions ?? []).map((item, index) => ({
       ...item,
-      command: `dialog.select.${id}.action.${index}`,
+      command: `dialog.select.action.${index}`,
       key: resolveBindingKey(tuiConfig, item.binding),
       label: formatBindingLabel(tuiConfig, item.binding),
     })),
@@ -203,49 +202,49 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
   useBindings(() => ({
     commands: [
       {
-        name: `dialog.select.${id}.prev`,
+        name: "dialog.select.prev",
         run() {
           setStore("input", "keyboard")
           move(-1)
         },
       },
       {
-        name: `dialog.select.${id}.next`,
+        name: "dialog.select.next",
         run() {
           setStore("input", "keyboard")
           move(1)
         },
       },
       {
-        name: `dialog.select.${id}.page_up`,
+        name: "dialog.select.page_up",
         run() {
           setStore("input", "keyboard")
           move(-10)
         },
       },
       {
-        name: `dialog.select.${id}.page_down`,
+        name: "dialog.select.page_down",
         run() {
           setStore("input", "keyboard")
           move(10)
         },
       },
       {
-        name: `dialog.select.${id}.home`,
+        name: "dialog.select.home",
         run() {
           setStore("input", "keyboard")
           moveTo(0)
         },
       },
       {
-        name: `dialog.select.${id}.end`,
+        name: "dialog.select.end",
         run() {
           setStore("input", "keyboard")
           moveTo(flat().length - 1)
         },
       },
       {
-        name: `dialog.select.${id}.submit`,
+        name: "dialog.select.submit",
         run() {
           setStore("input", "keyboard")
           const option = selected()
@@ -265,15 +264,15 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
       })),
     ],
     bindings: [
-      { key: "up", cmd: `dialog.select.${id}.prev` },
-      { key: "ctrl+p", cmd: `dialog.select.${id}.prev` },
-      { key: "down", cmd: `dialog.select.${id}.next` },
-      { key: "ctrl+n", cmd: `dialog.select.${id}.next` },
-      { key: "pageup", cmd: `dialog.select.${id}.page_up` },
-      { key: "pagedown", cmd: `dialog.select.${id}.page_down` },
-      { key: "home", cmd: `dialog.select.${id}.home` },
-      { key: "end", cmd: `dialog.select.${id}.end` },
-      { key: "return", cmd: `dialog.select.${id}.submit` },
+      { key: "up", cmd: "dialog.select.prev" },
+      { key: "ctrl+p", cmd: "dialog.select.prev" },
+      { key: "down", cmd: "dialog.select.next" },
+      { key: "ctrl+n", cmd: "dialog.select.next" },
+      { key: "pageup", cmd: "dialog.select.page_up" },
+      { key: "pagedown", cmd: "dialog.select.page_down" },
+      { key: "home", cmd: "dialog.select.home" },
+      { key: "end", cmd: "dialog.select.end" },
+      { key: "return", cmd: "dialog.select.submit" },
       ...actions().flatMap((item) => {
         if (item.disabled || !item.key) return []
         return {

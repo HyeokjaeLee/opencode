@@ -3,7 +3,7 @@ import { pathToFileURL } from "bun"
 import fuzzysort from "fuzzysort"
 import path from "path"
 import { firstBy } from "remeda"
-import { createMemo, createResource, createEffect, createUniqueId, onMount, onCleanup, Index, Show, createSignal } from "solid-js"
+import { createMemo, createResource, createEffect, onMount, onCleanup, Index, Show, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useEditorContext } from "@tui/context/editor"
 import { useSDK } from "@tui/context/sdk"
@@ -87,8 +87,6 @@ export function Autocomplete(props: {
   const dimensions = useTerminalDimensions()
   const frecency = useFrecency()
   const tuiConfig = useTuiConfig()
-  const id = createUniqueId()
-
   const [store, setStore] = createStore({
     index: 0,
     selected: 0,
@@ -526,33 +524,33 @@ export function Autocomplete(props: {
     enabled: () => Boolean(store.visible),
     commands: [
       {
-        name: `prompt.autocomplete.${id}.prev`,
+        name: "prompt.autocomplete.prev",
         run() {
           setStore("input", "keyboard")
           move(-1)
         },
       },
       {
-        name: `prompt.autocomplete.${id}.next`,
+        name: "prompt.autocomplete.next",
         run() {
           setStore("input", "keyboard")
           move(1)
         },
       },
       {
-        name: `prompt.autocomplete.${id}.hide`,
+        name: "prompt.autocomplete.hide",
         run() {
           hide()
         },
       },
       {
-        name: `prompt.autocomplete.${id}.select`,
+        name: "prompt.autocomplete.select",
         run() {
           select()
         },
       },
       {
-        name: `prompt.autocomplete.${id}.complete`,
+        name: "prompt.autocomplete.complete",
         run() {
           const selected = options()[store.selected]
           if (selected?.isDirectory) {
@@ -565,13 +563,13 @@ export function Autocomplete(props: {
       },
     ],
     bindings: [
-      { key: "up", cmd: `prompt.autocomplete.${id}.prev` },
-      { key: "ctrl+p", cmd: `prompt.autocomplete.${id}.prev` },
-      { key: "down", cmd: `prompt.autocomplete.${id}.next` },
-      { key: "ctrl+n", cmd: `prompt.autocomplete.${id}.next` },
-      { key: "escape", cmd: `prompt.autocomplete.${id}.hide` },
-      { key: "return", cmd: `prompt.autocomplete.${id}.select` },
-      { key: "tab", cmd: `prompt.autocomplete.${id}.complete` },
+      { key: "up", cmd: "prompt.autocomplete.prev" },
+      { key: "ctrl+p", cmd: "prompt.autocomplete.prev" },
+      { key: "down", cmd: "prompt.autocomplete.next" },
+      { key: "ctrl+n", cmd: "prompt.autocomplete.next" },
+      { key: "escape", cmd: "prompt.autocomplete.hide" },
+      { key: "return", cmd: "prompt.autocomplete.select" },
+      { key: "tab", cmd: "prompt.autocomplete.complete" },
     ],
   }))
 
