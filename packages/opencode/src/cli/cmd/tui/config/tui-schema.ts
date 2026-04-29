@@ -108,7 +108,10 @@ export const TuiInfo = z
   .object({
     $schema: z.string().optional(),
     theme: z.string().optional(),
-    keybinds: KeybindOverride.optional().describe("@deprecated Use keymap instead. This will be removed in opencode v2.0."),
+    keybinds: KeybindOverride.optional().meta({
+      deprecated: true,
+      description: "Use keymap instead. This will be removed in opencode v2.0.",
+    }),
     keymap: KeymapConfig.optional(),
     plugin: ConfigPlugin.Spec.zod.array().optional(),
     plugin_enabled: z.record(z.string(), z.boolean()).optional(),
