@@ -9,7 +9,7 @@ import { InstanceBootstrap } from "@/project/bootstrap"
 import { Instance } from "@/project/instance"
 import { Pty } from "@/pty"
 import { Session } from "@/session/session"
-import { lazy } from "@/util/lazy"
+import { disposable } from "@/util/disposable"
 import { Filesystem } from "@/util/filesystem"
 import { authorizationLayer } from "./auth"
 import { ConfigApi, configHandlers } from "./config"
@@ -99,17 +99,13 @@ export const routes = Layer.mergeAll(
   Layer.provideMerge(Observability.layer),
 )
 
-export const webHandler = lazy(() =>
+export const webHandler = disposable(() =>
   HttpRouter.toWebHandler(routes, {
     memoMap,
     middleware: disposeMiddleware,
   }),
 )
 
-export async function disposeWebHandler() {
-  const old = webHandler.peek()
-  webHandler.reset()
-  await old?.dispose()
-}
+export const disposeWebHandler = webHandler.dispose
 
 export * as ExperimentalHttpApiServer from "./server"

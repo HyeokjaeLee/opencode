@@ -11,6 +11,7 @@ import { Vcs } from "@/project/vcs"
 import { Snapshot } from "@/snapshot"
 import { Bus } from "@/bus"
 import { Config } from "@/config/config"
+import { disposable } from "@/util/disposable"
 import * as Observability from "@opencode-ai/core/effect/observability"
 
 // BootstrapRuntime exists only to break a structural import cycle: AppLayer
@@ -32,15 +33,10 @@ export const BootstrapLayer = Layer.mergeAll(
   Bus.defaultLayer,
 ).pipe(Layer.provide(Observability.layer))
 
-let rt: ManagedRuntime.ManagedRuntime<Layer.Success<typeof BootstrapLayer>, Layer.Error<typeof BootstrapLayer>> | undefined
-const get = () => (rt ??= ManagedRuntime.make(BootstrapLayer, { memoMap }))
-type Runtime = Pick<ReturnType<typeof get>, "runPromise" | "dispose">
+const rt = disposable(() => ManagedRuntime.make(BootstrapLayer, { memoMap }))
+type Runtime = Pick<ReturnType<typeof rt>, "runPromise" | "dispose">
 
 export const BootstrapRuntime: Runtime = {
-  runPromise: (effect, options) => get().runPromise(effect, options),
-  async dispose() {
-    const old = rt
-    rt = undefined
-    await old?.dispose()
-  },
+  runPromise: (effect, options) => rt().runPromise(effect, options),
+  dispose: rt.dispose,
 }

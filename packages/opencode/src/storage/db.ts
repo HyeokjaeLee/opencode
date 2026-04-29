@@ -5,7 +5,7 @@ import { NamedError } from "@opencode-ai/core/util/error"
 import z from "zod"
 import { InstanceState } from "@/effect/instance-state"
 import { LocalContext } from "@/util/local-context"
-import { lazy } from "@/util/lazy"
+import { disposable } from "@/util/disposable"
 import { DatabaseEffect } from "./db-effect"
 
 export { Path, getChannelPath } from "./db-effect"
@@ -21,7 +21,7 @@ export const NotFoundError = NamedError.create(
 // AppRuntime/BootstrapRuntime to keep the legacy sync `use` / `transaction`
 // helpers reachable without an import cycle from app-runtime.ts. All three
 // runtimes share the global memoMap so they resolve to the same Service.
-const runtime = lazy(() => ManagedRuntime.make(DatabaseEffect.layer, { memoMap }))
+const runtime = disposable(() => ManagedRuntime.make(DatabaseEffect.layer, { memoMap }))
 
 // Resolves the current Drizzle handle. The Service value is stable for the
 // lifetime of the runtime, so cache it to avoid paying fiber-startup cost on
@@ -46,10 +46,8 @@ export type TxOrDb = Transaction | Client
 // memoMap drops the entry and the layer's finalizer closes the SQLite
 // handle. Used by `test/fixture/db.ts:resetDatabase`.
 export async function close() {
-  const old = runtime.peek()
   cached = undefined
-  runtime.reset()
-  await old?.dispose()
+  await runtime.dispose()
 }
 
 const ctx = LocalContext.create<{
@@ -58,11 +56,8 @@ const ctx = LocalContext.create<{
 }>("database")
 
 export function use<T>(callback: (trx: TxOrDb) => T): T {
-  try {
-    return callback(ctx.use().tx)
-  } catch (err) {
-    if (!(err instanceof LocalContext.NotFound)) throw err
-  }
+  const existing = ctx.peek()
+  if (existing) return callback(existing.tx)
   const db = client()
   const effects: (() => void | Promise<void>)[] = []
   const result = ctx.provide({ effects, tx: db }, () => callback(db))
@@ -72,11 +67,9 @@ export function use<T>(callback: (trx: TxOrDb) => T): T {
 
 export function effect(fn: () => any | Promise<any>) {
   const bound = InstanceState.bind(fn)
-  try {
-    ctx.use().effects.push(bound)
-  } catch {
-    bound()
-  }
+  const existing = ctx.peek()
+  if (existing) existing.effects.push(bound)
+  else bound()
 }
 
 type NotPromise<T> = T extends Promise<any> ? never : T
@@ -87,11 +80,8 @@ export function transaction<T>(
     behavior?: "deferred" | "immediate" | "exclusive"
   },
 ): NotPromise<T> {
-  try {
-    return callback(ctx.use().tx)
-  } catch (err) {
-    if (!(err instanceof LocalContext.NotFound)) throw err
-  }
+  const existing = ctx.peek()
+  if (existing) return callback(existing.tx)
   const db = client()
   const effects: (() => void | Promise<void>)[] = []
   const txCallback = InstanceState.bind((tx: TxOrDb) => ctx.provide({ tx, effects }, () => callback(tx)))

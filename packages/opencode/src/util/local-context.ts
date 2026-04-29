@@ -11,10 +11,11 @@ export function create<T>(name: string) {
   return {
     use() {
       const result = storage.getStore()
-      if (!result) {
-        throw new NotFound(name)
-      }
+      if (!result) throw new NotFound(name)
       return result
+    },
+    peek() {
+      return storage.getStore()
     },
     provide<R>(value: T, fn: () => R) {
       return storage.run(value, fn)

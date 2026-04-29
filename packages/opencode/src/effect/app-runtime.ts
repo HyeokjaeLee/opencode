@@ -1,6 +1,7 @@
 import { Layer, ManagedRuntime } from "effect"
 import { memoMap } from "@opencode-ai/core/effect/memo-map"
 import { attach } from "./run-service"
+import { disposable } from "@/util/disposable"
 import * as Observability from "@opencode-ai/core/effect/observability"
 
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
@@ -97,23 +98,25 @@ export const AppLayer = Layer.mergeAll(
   SessionShare.defaultLayer,
 ).pipe(Layer.provideMerge(Observability.layer))
 
-let rt: ManagedRuntime.ManagedRuntime<Layer.Success<typeof AppLayer>, Layer.Error<typeof AppLayer>> | undefined
-const get = () => (rt ??= ManagedRuntime.make(AppLayer, { memoMap }))
+const rt = disposable(() => ManagedRuntime.make(AppLayer, { memoMap }))
 type Runtime = Pick<
-  ReturnType<typeof get>,
+  ReturnType<typeof rt>,
   "runSync" | "runPromise" | "runPromiseExit" | "runFork" | "runCallback" | "dispose"
 >
-const wrap = (effect: Parameters<ReturnType<typeof get>["runSync"]>[0]) => attach(effect as never) as never
+
+// Each method wraps the effect through `attach()` so `Instance.current` and
+// `WorkspaceContext.workspaceID` (read from AsyncLocalStorage at call time)
+// are provided as `InstanceRef` / `WorkspaceRef` services. This is per-call,
+// not per-build, so it can't be expressed as a static layer — `Layer.effect`
+// captures the ALS state at first build and bakes it into the memoized
+// service value forever.
+const wrap = (effect: Parameters<ReturnType<typeof rt>["runSync"]>[0]) => attach(effect as never) as never
 
 export const AppRuntime: Runtime = {
-  runSync: (effect) => get().runSync(wrap(effect)),
-  runPromise: (effect, options) => get().runPromise(wrap(effect), options),
-  runPromiseExit: (effect, options) => get().runPromiseExit(wrap(effect), options),
-  runFork: (effect) => get().runFork(wrap(effect)),
-  runCallback: (effect) => get().runCallback(wrap(effect)),
-  async dispose() {
-    const old = rt
-    rt = undefined
-    await old?.dispose()
-  },
+  runSync: (effect) => rt().runSync(wrap(effect)),
+  runPromise: (effect, options) => rt().runPromise(wrap(effect), options),
+  runPromiseExit: (effect, options) => rt().runPromiseExit(wrap(effect), options),
+  runFork: (effect) => rt().runFork(wrap(effect)),
+  runCallback: (effect) => rt().runCallback(wrap(effect)),
+  dispose: rt.dispose,
 }
