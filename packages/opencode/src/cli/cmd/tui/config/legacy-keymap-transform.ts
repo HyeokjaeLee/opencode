@@ -155,11 +155,12 @@ export function create(keybinds: LegacyKeybinds): KeymapInfo {
   add(config, "dialog_plugins", "plugins.toggle", keybinds["plugins.toggle"])
   add(config, "dialog_plugins", "plugins.install", keybinds["plugins.install"])
   add(config, "home_tips", "tips.toggle", keybinds.tips_toggle)
-  const sections = resolveBindingSections(config satisfies BindingSectionsConfig<Renderable, KeyEvent>).sections
 
   return {
     leader: !keybinds.leader || keybinds.leader === "none" ? "ctrl+x" : keybinds.leader,
-    sections: Object.fromEntries(KeymapSectionNames.map((section) => [section, sections[section] ?? []])) as KeymapSections,
+    sections: resolveBindingSections(config satisfies BindingSectionsConfig<Renderable, KeyEvent>, {
+      sections: KeymapSectionNames,
+    }).sections as KeymapSections,
   }
 }
 

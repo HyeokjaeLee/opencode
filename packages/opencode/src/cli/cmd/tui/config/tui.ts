@@ -156,9 +156,6 @@ const loadState = Effect.fn("TuiConfig.loadState")(function* (ctx: { directory: 
   }
   const parsedKeybinds = ConfigKeybinds.Keybinds.parse(keybinds)
   const configuredKeymap = acc.result.keymap
-  const configuredSections = configuredKeymap
-    ? resolveBindingSections((configuredKeymap.sections ?? {}) as BindingSectionsConfig<Renderable, KeyEvent>).sections
-    : undefined
   const result: Resolved = {
     ...acc.result,
     keybinds: parsedKeybinds,
@@ -168,9 +165,9 @@ const loadState = Effect.fn("TuiConfig.loadState")(function* (ctx: { directory: 
     keymap: configuredKeymap
       ? {
           leader: !configuredKeymap.leader || configuredKeymap.leader === "none" ? "ctrl+x" : configuredKeymap.leader,
-          sections: Object.fromEntries(
-            KeymapSectionNames.map((section) => [section, configuredSections?.[section] ?? []]),
-          ) as KeymapSections,
+          sections: resolveBindingSections((configuredKeymap.sections ?? {}) as BindingSectionsConfig<Renderable, KeyEvent>, {
+            sections: KeymapSectionNames,
+          }).sections as KeymapSections,
         }
       : LegacyKeymapTransform.create(parsedKeybinds),
   }

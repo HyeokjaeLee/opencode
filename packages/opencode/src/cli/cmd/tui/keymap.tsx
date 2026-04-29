@@ -63,17 +63,13 @@ export function registerOpencodeKeymap(keymap: OpenTuiKeymap, renderer: CliRende
   const offLeader = registerOpencodeLeader(keymap, config)
   const offEscape = addons.registerEscapeClearsPendingSequence(keymap)
   const offBackspace = addons.registerBackspacePopsPendingSequence(keymap)
-  const offInputCommands = addons.registerEditBufferCommands(keymap, renderer)
-  const offInputSuspension = addons.registerTextareaMappingSuspension(keymap, renderer)
-  const offInputBindings = keymap.registerLayer({
+  const offInputBindings = addons.registerManagedTextareaLayer(keymap, renderer, {
     enabled: () => renderer.currentFocusedEditor !== null,
     bindings: config.keymap.sections.input,
   })
 
   return () => {
     offInputBindings()
-    offInputSuspension()
-    offInputCommands()
     offBackspace()
     offEscape()
     offLeader()
