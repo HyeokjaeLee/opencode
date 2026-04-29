@@ -116,26 +116,21 @@ function CommandPaletteDialog(props: { run(command: string): void }) {
     const query = {
       namespace: "palette",
     }
-
-    const registeredByName = new Map(
-      keymap
-        .getCommandEntries({
-          ...query,
-          visibility: "registered",
-        })
-        .map((entry) => [entry.command.name, entry.bindings]),
-    )
-
-    return keymap
+    const reachable = keymap
       .getCommandEntries({
         ...query,
         visibility: "reachable",
       })
       .filter(isVisiblePaletteCommand)
-      .map((entry) => ({
-        ...entry,
-        bindings: registeredByName.get(entry.command.name) ?? entry.bindings,
-      }))
+    const registeredBindings = keymap.getCommandBindings({
+      visibility: "registered",
+      commands: reachable.map((entry) => entry.command.name),
+    })
+
+    return reachable.map((entry) => ({
+      ...entry,
+      bindings: registeredBindings.get(entry.command.name) ?? entry.bindings,
+    }))
   })
   const options = createMemo(() =>
     entries().map((entry) => ({

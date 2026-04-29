@@ -80,10 +80,10 @@ export function registerOpencodeKeymap(keymap: OpenTuiKeymap, renderer: CliRende
 
 function firstRegisteredBinding(command: string, config: TuiConfig.Resolved) {
   return (keymap: OpenTuiKeymap) => {
-    const entry = keymap
-      .getCommandEntries({ visibility: "registered" })
-      .find((candidate: { command: { name: string } }) => candidate.command.name === command)
-    return formatKeySequence(entry?.bindings[0]?.sequence, config)
+    return formatKeySequence(
+      keymap.getCommandBindings({ visibility: "registered", commands: [command] }).get(command)?.[0]?.sequence,
+      config,
+    )
   }
 }
 

@@ -92,16 +92,19 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
   let input: InputRenderable
 
   const actions = createMemo(() => props.actions ?? [])
-  const registeredBindings = useKeymapSelector((keymap) => keymap.getCommandEntries({ visibility: "registered" }))
+  const actionBindings = useKeymapSelector((keymap) =>
+    keymap.getCommandBindings({
+      visibility: "registered",
+      commands: actions().map((item) => item.command),
+    }),
+  )
 
   const actionLabels = createMemo(() => {
-    const commands = new Set(actions().map((item) => item.command))
     const labels = new Map<string, string>()
 
-    for (const entry of registeredBindings()) {
-      if (!commands.has(entry.command.name)) continue
+    for (const action of actions()) {
       const seen = new Set<string>()
-      const formatted = entry.bindings
+      const formatted = (actionBindings().get(action.command) ?? [])
         .map((binding) => formatKeySequence(binding.sequence, tuiConfig))
         .filter((item) => {
           if (!item || seen.has(item)) return false
@@ -109,7 +112,7 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
           return true
         })
 
-      if (formatted.length > 0) labels.set(entry.command.name, formatted.join(", "))
+      if (formatted.length > 0) labels.set(action.command, formatted.join(", "))
     }
 
     return labels
