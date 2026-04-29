@@ -79,7 +79,9 @@ async function load(): Promise<Data> {
 
       await Bun.write(
         localPluginPath,
-        `export const ignored = async (_input, options) => {
+        `import { useBindings } from "@opentui/keymap/solid"
+
+export const ignored = async (_input, options) => {
   if (!options?.fn_marker) return
   await Bun.write(options.fn_marker, "called")
 }
@@ -140,6 +142,7 @@ export default {
         key_close,
         key_unknown,
         has_keymap: typeof api.keymap.registerLayer === "function",
+        has_keymap_solid: typeof useBindings === "function",
         kv_before,
         kv_after,
         kv_ready: api.kv.ready,
@@ -647,6 +650,7 @@ describe("tui.plugin.loader", () => {
     expect(data.local.key_close).toBe("q")
     expect(data.local.key_unknown).toBe("ctrl+k")
     expect(data.local.has_keymap).toBe(true)
+    expect(data.local.has_keymap_solid).toBe(true)
     expect(data.local.kv_before).toBe("missing")
     expect(data.local.kv_after).toBe("stored")
     expect(data.local.kv_ready).toBe(true)
