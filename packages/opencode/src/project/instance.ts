@@ -76,6 +76,14 @@ export const Instance = {
   get current() {
     return context.use()
   },
+  /**
+   * Returns the current instance context, or `undefined` when there is no
+   * ALS frame. Use this when the caller needs to fall back to a different
+   * source instead of throwing (e.g. reading from `InstanceRef` on a fiber).
+   */
+  get peekCurrent(): InstanceContext | undefined {
+    return context.peek()
+  },
   get directory() {
     return context.use().directory
   },

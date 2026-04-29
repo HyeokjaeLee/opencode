@@ -1,7 +1,6 @@
 import { Effect, Fiber, ScopedCache, Scope, Context } from "effect"
 import * as EffectLogger from "@opencode-ai/core/effect/logger"
 import { Instance, type InstanceContext } from "@/project/instance"
-import { LocalContext } from "@/util/local-context"
 import { InstanceRef, WorkspaceRef } from "./instance-ref"
 import { registerDisposer } from "./instance-registry"
 import { WorkspaceContext } from "@/control-plane/workspace-context"
@@ -13,14 +12,14 @@ export interface InstanceState<A, E = never, R = never> {
   readonly cache: ScopedCache.ScopedCache<string, A, E, R>
 }
 
+// Captures the current Instance context for native callbacks. Falls back to
+// the running fiber's `InstanceRef` when no ALS frame is present (e.g. when
+// invoked from inside an Effect that was provided InstanceRef directly).
+// Returns the original function untouched if neither source has a context.
 export const bind = <F extends (...args: any[]) => any>(fn: F): F => {
-  try {
-    return Instance.bind(fn)
-  } catch (err) {
-    if (!(err instanceof LocalContext.NotFound)) throw err
-  }
-  const fiber = Fiber.getCurrent()
-  const ctx = fiber ? Context.getReferenceUnsafe(fiber.context, InstanceRef) : undefined
+  const fromAls = Instance.peekCurrent
+  const fromFiber = fromAls ? undefined : Fiber.getCurrent()
+  const ctx = fromAls ?? (fromFiber ? Context.getReferenceUnsafe(fromFiber.context, InstanceRef) : undefined)
   if (!ctx) return fn
   return ((...args: any[]) => Instance.restore(ctx, () => fn(...args))) as F
 }

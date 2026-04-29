@@ -2,7 +2,6 @@ import { Effect, Fiber } from "effect"
 import { WorkspaceContext } from "@/control-plane/workspace-context"
 import { Instance, type InstanceContext } from "@/project/instance"
 import type { WorkspaceID } from "@/control-plane/schema"
-import { LocalContext } from "@/util/local-context"
 import { InstanceRef, WorkspaceRef } from "./instance-ref"
 import { attachWith } from "./run-service"
 
@@ -23,16 +22,7 @@ function restore<R>(instance: InstanceContext | undefined, workspace: WorkspaceI
 export function make(): Effect.Effect<Shape> {
   return Effect.gen(function* () {
     const ctx = yield* Effect.context()
-    const value = yield* InstanceRef
-    const instance =
-      value ??
-      (() => {
-        try {
-          return Instance.current
-        } catch (err) {
-          if (!(err instanceof LocalContext.NotFound)) throw err
-        }
-      })()
+    const instance = (yield* InstanceRef) ?? Instance.peekCurrent
     const workspace = (yield* WorkspaceRef) ?? WorkspaceContext.workspaceID
     const attach = <A, E, R>(effect: Effect.Effect<A, E, R>) => attachWith(effect, { instance, workspace })
     const wrap = <A, E, R>(effect: Effect.Effect<A, E, R>) =>

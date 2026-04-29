@@ -104,12 +104,10 @@ type Runtime = Pick<
   "runSync" | "runPromise" | "runPromiseExit" | "runFork" | "runCallback" | "dispose"
 >
 
-// Each method wraps the effect through `attach()` so `Instance.current` and
-// `WorkspaceContext.workspaceID` (read from AsyncLocalStorage at call time)
-// are provided as `InstanceRef` / `WorkspaceRef` services. This is per-call,
-// not per-build, so it can't be expressed as a static layer — `Layer.effect`
-// captures the ALS state at first build and bakes it into the memoized
-// service value forever.
+// Each method wraps the effect through `attach()` which reads the current
+// Instance and Workspace from AsyncLocalStorage and provides them as
+// `InstanceRef` / `WorkspaceRef`. ALS state changes between calls, so this
+// has to happen per-call — a static layer would close over a single read.
 const wrap = (effect: Parameters<ReturnType<typeof rt>["runSync"]>[0]) => attach(effect as never) as never
 
 export const AppRuntime: Runtime = {
