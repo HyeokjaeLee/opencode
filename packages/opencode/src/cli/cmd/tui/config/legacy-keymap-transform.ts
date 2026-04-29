@@ -2,10 +2,10 @@ import type { KeyEvent, Renderable } from "@opentui/core"
 import type { BindingInput } from "@opentui/keymap"
 import { resolveBindingSections, type BindingSectionsConfig, type BindingValue } from "@opentui/keymap/extras"
 import { ConfigKeybinds } from "@/config/keybinds"
-import { KeymapSectionNames, type KeymapInfo, type KeymapSection, type KeymapSections } from "./tui-schema"
+import { KeymapSectionNames, type KeymapInfo, type KeymapSection } from "./tui-schema"
 
 type LegacyKeybinds = ConfigKeybinds.Keybinds
-type SectionsConfig = Record<KeymapSection, Record<string, BindingValue<Renderable, KeyEvent>>>
+type SectionsConfig = Record<string, Record<string, BindingValue<Renderable, KeyEvent>>>
 
 const inputCommands = {
   input_submit: "input.submit",
@@ -46,11 +46,8 @@ const inputCommands = {
   input_select_all: "input.select.all",
 } as const satisfies Partial<Record<keyof LegacyKeybinds, string>>
 
-function emptySectionsConfig(): SectionsConfig {
-  return Object.fromEntries(KeymapSectionNames.map((section) => [section, {}])) as SectionsConfig
-}
-
 function add(config: SectionsConfig, section: KeymapSection, command: string, binding: BindingValue<Renderable, KeyEvent> | undefined) {
+  config[section] ??= {}
   config[section][command] = binding ?? "none"
 }
 
@@ -60,7 +57,7 @@ function bindingWith(key: string | undefined, input: Omit<BindingInput<Renderabl
 }
 
 export function create(keybinds: LegacyKeybinds): KeymapInfo {
-  const config = emptySectionsConfig()
+  const config: SectionsConfig = {}
 
   add(config, "app", "command.palette.show", keybinds.command_list)
   add(config, "app", "session.list", keybinds.session_list)
@@ -158,9 +155,9 @@ export function create(keybinds: LegacyKeybinds): KeymapInfo {
 
   return {
     leader: !keybinds.leader || keybinds.leader === "none" ? "ctrl+x" : keybinds.leader,
-    sections: resolveBindingSections(config satisfies BindingSectionsConfig<Renderable, KeyEvent>, {
+    sections: resolveBindingSections<Renderable, KeyEvent, SectionsConfig, KeymapSection>(config, {
       sections: KeymapSectionNames,
-    }).sections as KeymapSections,
+    }).sections,
   }
 }
 

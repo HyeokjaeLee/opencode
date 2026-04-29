@@ -23,7 +23,7 @@ import * as Log from "@opencode-ai/core/util/log"
 import { ConfigVariable } from "@/config/variable"
 import { Npm } from "@opencode-ai/core/npm"
 import { LegacyKeymapTransform } from "./legacy-keymap-transform"
-import { KeymapSectionNames, type KeymapConfig, type KeymapInfo, type KeymapSections } from "./tui-schema"
+import { KeymapSectionNames, type KeymapConfig, type KeymapInfo, type KeymapSection } from "./tui-schema"
 
 const log = Log.create({ service: "tui.config" })
 
@@ -165,9 +165,12 @@ const loadState = Effect.fn("TuiConfig.loadState")(function* (ctx: { directory: 
     keymap: configuredKeymap
       ? {
           leader: !configuredKeymap.leader || configuredKeymap.leader === "none" ? "ctrl+x" : configuredKeymap.leader,
-          sections: resolveBindingSections((configuredKeymap.sections ?? {}) as BindingSectionsConfig<Renderable, KeyEvent>, {
-            sections: KeymapSectionNames,
-          }).sections as KeymapSections,
+          sections: resolveBindingSections<Renderable, KeyEvent, BindingSectionsConfig<Renderable, KeyEvent>, KeymapSection>(
+            configuredKeymap.sections ?? {},
+            {
+              sections: KeymapSectionNames,
+            },
+          ).sections,
         }
       : LegacyKeymapTransform.create(parsedKeybinds),
   }

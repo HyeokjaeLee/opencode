@@ -1,7 +1,7 @@
 import z from "zod"
 import type { KeyEvent, Renderable } from "@opentui/core"
 import type { BindingInput } from "@opentui/keymap"
-import type { BindingValue } from "@opentui/keymap/extras"
+import type { BindingSectionsConfig, BindingValue } from "@opentui/keymap/extras"
 import { ConfigPlugin } from "@/config/plugin"
 import { ConfigKeybinds } from "@/config/keybinds"
 
@@ -47,7 +47,7 @@ export type KeymapInfo = {
 }
 export type KeymapConfig = {
   leader?: string
-  sections?: Partial<Record<KeymapSection, Record<string, BindingValue<Renderable, KeyEvent>>>>
+  sections?: BindingSectionsConfig<Renderable, KeyEvent>
 }
 
 const KeyStroke = z
@@ -72,14 +72,7 @@ const KeymapBindingObject = z
 
 const KeymapBindingItem = z.union([z.string(), KeyStroke, KeymapBindingObject])
 const KeymapBindingValue = z.union([z.literal(false), z.literal("none"), KeymapBindingItem, z.array(KeymapBindingItem)])
-const KeymapSectionsConfig = z
-  .object(
-    Object.fromEntries(KeymapSectionNames.map((section) => [section, z.record(z.string(), KeymapBindingValue).optional()])) as Record<
-      KeymapSection,
-      z.ZodOptional<z.ZodRecord<z.ZodString, typeof KeymapBindingValue>>
-    >,
-  )
-  .strict()
+const KeymapSectionsConfig = z.record(z.string(), z.record(z.string(), KeymapBindingValue))
 
 export const KeymapConfig = z
   .object({
