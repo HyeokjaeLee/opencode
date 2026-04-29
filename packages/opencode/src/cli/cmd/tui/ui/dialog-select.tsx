@@ -51,6 +51,16 @@ export type DialogSelectRef<T> = {
   filtered: DialogSelectOption<T>[]
 }
 
+const defaultBindings = [
+  { cmd: "dialog.select.prev", desc: "Previous item" },
+  { cmd: "dialog.select.next", desc: "Next item" },
+  { cmd: "dialog.select.page_up", desc: "Previous page" },
+  { cmd: "dialog.select.page_down", desc: "Next page" },
+  { cmd: "dialog.select.home", desc: "First item" },
+  { cmd: "dialog.select.end", desc: "Last item" },
+  { cmd: "dialog.select.submit", desc: "Select item" },
+] as const
+
 export function DialogSelect<T>(props: DialogSelectProps<T>) {
   const dialog = useDialog()
   const { theme } = useTheme()
@@ -264,15 +274,15 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
       })),
     ],
     bindings: [
-      { key: "up", cmd: "dialog.select.prev" },
-      { key: "ctrl+p", cmd: "dialog.select.prev" },
-      { key: "down", cmd: "dialog.select.next" },
-      { key: "ctrl+n", cmd: "dialog.select.next" },
-      { key: "pageup", cmd: "dialog.select.page_up" },
-      { key: "pagedown", cmd: "dialog.select.page_down" },
-      { key: "home", cmd: "dialog.select.home" },
-      { key: "end", cmd: "dialog.select.end" },
-      { key: "return", cmd: "dialog.select.submit" },
+      ...defaultBindings.flatMap((item) => {
+        const key = resolveBindingKey(tuiConfig, item.cmd)
+        if (!key) return []
+        return {
+          key,
+          cmd: item.cmd,
+          desc: item.desc,
+        }
+      }),
       ...actions().flatMap((item) => {
         if (item.disabled || !item.key) return []
         return {
