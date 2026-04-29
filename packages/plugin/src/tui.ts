@@ -16,7 +16,7 @@ import type {
   Config as SdkConfig,
 } from "@opencode-ai/sdk/v2"
 import type { CliRenderer, KeyEvent, RGBA, Renderable, SlotMode } from "@opentui/core"
-import type { Keymap } from "@opentui/keymap"
+import type { BindingInput, Keymap } from "@opentui/keymap"
 import type { JSX, SolidPlugin } from "@opentui/solid"
 import type { Config as PluginConfig, PluginOptions } from "./index.js"
 
@@ -257,6 +257,10 @@ export type TuiState = {
 type TuiConfigView = Pick<PluginConfig, "$schema" | "theme" | "keybinds" | "plugin"> &
   NonNullable<PluginConfig["tui"]> & {
     plugin_enabled?: Record<string, boolean>
+    keymap: {
+      leader: string
+      sections: Record<string, ReadonlyArray<BindingInput<Renderable, KeyEvent>>>
+    }
   }
 
 export type TuiApp = {

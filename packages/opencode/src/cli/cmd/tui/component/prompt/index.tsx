@@ -1,4 +1,14 @@
-import { BoxRenderable, RGBA, TextareaRenderable, MouseEvent, PasteEvent, decodePasteBytes } from "@opentui/core"
+import {
+  BoxRenderable,
+  RGBA,
+  TextareaRenderable,
+  MouseEvent,
+  PasteEvent,
+  decodePasteBytes,
+  type KeyEvent,
+  type Renderable,
+} from "@opentui/core"
+import type { CommandContext } from "@opentui/keymap"
 import { createEffect, createMemo, onMount, createSignal, onCleanup, on, Show, Switch, Match } from "solid-js"
 import "opentui-spinner/solid"
 import path from "path"
@@ -42,7 +52,6 @@ import { DialogWorkspaceUnavailable } from "../dialog-workspace-unavailable"
 import { useArgs } from "@tui/context/args"
 import { useCommandPalette } from "../../context/command-palette"
 import {
-  resolveBindingKey,
   useBindings,
   useCommandShortcut,
   useDispatchCommand,
@@ -132,6 +141,9 @@ export function Prompt(props: PromptProps) {
   const project = useProject()
   const sync = useSync()
   const tuiConfig = useTuiConfig()
+  const {
+    keymap: { sections },
+  } = tuiConfig
   const dialog = useDialog()
   const toast = useToast()
   const status = createMemo(() => sync.data.session_status?.[props.sessionID ?? ""] ?? { type: "idle" })
@@ -309,8 +321,13 @@ export function Prompt(props: PromptProps) {
         category: "Prompt",
         hidden: true,
         run: () => {
-          input.extmarks.clear()
           input.clear()
+          input.extmarks.clear()
+          setStore("prompt", {
+            input: "",
+            parts: [],
+          })
+          setStore("extmarkToPartIndex", new Map())
           dialog.clear()
         },
       },
@@ -342,9 +359,11 @@ export function Prompt(props: PromptProps) {
         name: "prompt.paste",
         category: "Prompt",
         hidden: true,
-        run: async () => {
+        run: async (ctx: CommandContext<Renderable, KeyEvent>) => {
           const content = await Clipboard.read()
           if (content?.mime.startsWith("image/")) {
+            ctx.event.preventDefault()
+            ctx.event.stopPropagation()
             await pasteAttachment({
               filename: "clipboard",
               mime: content.mime,
@@ -356,7 +375,6 @@ export function Prompt(props: PromptProps) {
       {
         title: "Interrupt session",
         name: "session.interrupt",
-        keybind: "session_interrupt",
         category: "Session",
         hidden: true,
         enabled: status().type !== "idle",
@@ -501,16 +519,7 @@ export function Prompt(props: PromptProps) {
 
   useBindings(() => ({
     enabled: command.matcher,
-    bindings: promptCommands().flatMap((entry) => {
-      const keybind = "keybind" in entry && typeof entry.keybind === "string" ? entry.keybind : undefined
-      const key = resolveBindingKey(tuiConfig, keybind)
-      if (!key) return []
-      return {
-        key,
-        cmd: entry.name,
-        desc: entry.title,
-      }
-    }),
+    bindings: sections.prompt,
   }))
 
   const ref: PromptRef = {
@@ -741,45 +750,11 @@ export function Prompt(props: PromptProps) {
     commands: stashCommands(),
   }))
 
-  useBindings(() => ({
-    enabled: command.matcher,
-    bindings: stashCommands().flatMap((entry) => {
-      const keybind = "keybind" in entry && typeof entry.keybind === "string" ? entry.keybind : undefined
-      const key = resolveBindingKey(tuiConfig, keybind)
-      if (!key) return []
-      return {
-        key,
-        cmd: entry.name,
-        desc: entry.title,
-      }
-    }),
-  }))
-
   useBindings(() => {
     return {
       target: inputTarget,
       enabled: inputTarget() !== undefined && !props.disabled,
-      bindings: (() => {
-      const key = resolveBindingKey(tuiConfig, "input_paste")
-      if (!key) return []
-      return [
-        {
-          key,
-          preventDefault: false,
-          cmd: async ({ event }: { event: { preventDefault(): void; stopPropagation(): void } }) => {
-            const content = await Clipboard.read()
-            if (!content?.mime.startsWith("image/")) return
-            event.preventDefault()
-            event.stopPropagation()
-            await pasteAttachment({
-              filename: "clipboard",
-              mime: content.mime,
-              content: content.data,
-            })
-          },
-        },
-      ]
-      })(),
+      bindings: sections.prompt_paste,
     }
   })
 
@@ -787,24 +762,7 @@ export function Prompt(props: PromptProps) {
     return {
       target: inputTarget,
       enabled: inputTarget() !== undefined && !props.disabled && store.prompt.input !== "",
-      bindings: (() => {
-      const key = resolveBindingKey(tuiConfig, "input_clear")
-      if (!key) return []
-      return [
-        {
-          key,
-          cmd: () => {
-            input.clear()
-            input.extmarks.clear()
-            setStore("prompt", {
-              input: "",
-              parts: [],
-            })
-            setStore("extmarkToPartIndex", new Map())
-          },
-        },
-      ]
-      })(),
+      bindings: sections.prompt_clear,
     }
   })
 
@@ -859,13 +817,10 @@ export function Prompt(props: PromptProps) {
           (input.cursorOffset === 0 || input.visualCursor.visualRow === 0)
         )
       })(),
-      bindings: (() => {
-      const key = resolveBindingKey(tuiConfig, "history_previous")
-      if (!key) return []
-      return [
+      commands: [
         {
-          key,
-          cmd: () => {
+          name: "prompt.history.previous",
+          run() {
             if (input.cursorOffset !== 0) {
               input.cursorOffset = 0
               return
@@ -880,8 +835,8 @@ export function Prompt(props: PromptProps) {
             input.cursorOffset = 0
           },
         },
-      ]
-      })(),
+      ],
+      bindings: sections.prompt_history_previous,
     }
   })
 
@@ -898,13 +853,10 @@ export function Prompt(props: PromptProps) {
           (input.cursorOffset === input.plainText.length || input.visualCursor.visualRow === input.height - 1)
         )
       })(),
-      bindings: (() => {
-      const key = resolveBindingKey(tuiConfig, "history_next")
-      if (!key) return []
-      return [
+      commands: [
         {
-          key,
-          cmd: () => {
+          name: "prompt.history.next",
+          run() {
             if (input.cursorOffset !== input.plainText.length) {
               input.cursorOffset = input.plainText.length
               return
@@ -919,8 +871,8 @@ export function Prompt(props: PromptProps) {
             input.cursorOffset = input.plainText.length
           },
         },
-      ]
-      })(),
+      ],
+      bindings: sections.prompt_history_next,
     }
   })
 

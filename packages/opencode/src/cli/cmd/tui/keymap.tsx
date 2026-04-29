@@ -1,9 +1,5 @@
-import { defaultTextareaKeyBindings, type CliRenderer } from "@opentui/core"
-import {
-  stringifyKeyStroke,
-  type BindingInput,
-  type KeySequencePart,
-} from "@opentui/keymap"
+import { type CliRenderer } from "@opentui/core"
+import { stringifyKeyStroke, type KeySequencePart } from "@opentui/keymap"
 import * as addons from "@opentui/keymap/addons/opentui"
 import {
   KeymapProvider,
@@ -26,23 +22,6 @@ export { reactiveMatcherFromSignal, useBindings, useKeymapSelector }
 
 export type OpenTuiKeymap = ReturnType<typeof useKeymap>
 
-const textareaActions = new Set<string>([...defaultTextareaKeyBindings.map((binding) => binding.action), "submit"])
-
-export function resolveBindingKey(config: TuiConfig.Info, keybind?: string) {
-  if (!keybind) return
-  const value = config.keybinds?.[keybind as keyof NonNullable<TuiConfig.Info["keybinds"]>] ?? keybind
-  if (!value || value === "none") return
-  return value
-}
-
-function leaderSequence(config: TuiConfig.Info) {
-  return resolveBindingKey(config, "leader") || "ctrl+x"
-}
-
-function leaderStroke(config: TuiConfig.Info) {
-  return resolveBindingKey(config, "leader") || "ctrl+x"
-}
-
 function formatKeyName(name: string) {
   if (name === "pageup") return "pgup"
   if (name === "pagedown") return "pgdn"
@@ -51,8 +30,8 @@ function formatKeyName(name: string) {
   return name
 }
 
-function formatStroke(part: KeySequencePart, config: TuiConfig.Info) {
-  if (part.tokenName === LEADER_TOKEN) return leaderSequence(config)
+function formatStroke(part: KeySequencePart, config: TuiConfig.Resolved) {
+  if (part.tokenName === LEADER_TOKEN) return config.keymap.leader
   if (part.tokenName) return part.display
 
   const pieces: string[] = []
@@ -64,19 +43,13 @@ function formatStroke(part: KeySequencePart, config: TuiConfig.Info) {
   return pieces.join("+")
 }
 
-export function formatKeySequence(parts: readonly KeySequencePart[] | undefined, config: TuiConfig.Info) {
+export function formatKeySequence(parts: readonly KeySequencePart[] | undefined, config: TuiConfig.Resolved) {
   if (!parts || parts.length === 0) return ""
   return parts.map((part) => formatStroke(part, config)).join(" ")
 }
 
-export function formatBindingLabel(config: TuiConfig.Info, keybind?: string) {
-  const resolved = resolveBindingKey(config, keybind)
-  if (!resolved) return ""
-  return resolved.replaceAll(LEADER_TOKEN, leaderSequence(config))
-}
-
-function registerOpencodeLeader(keymap: OpenTuiKeymap, config: TuiConfig.Info) {
-  const trigger = leaderStroke(config)
+function registerOpencodeLeader(keymap: OpenTuiKeymap, config: TuiConfig.Resolved) {
+  const trigger = config.keymap.leader
   return addons.registerTimedLeader(keymap, {
     trigger,
     name: LEADER_TOKEN,
@@ -84,55 +57,23 @@ function registerOpencodeLeader(keymap: OpenTuiKeymap, config: TuiConfig.Info) {
   })
 }
 
-function resolveTextareaAction(keybind: string) {
-  if (!keybind.startsWith("input_")) return
-  const action = keybind.slice("input_".length).replaceAll("_", "-")
-  if (!textareaActions.has(action)) return
-  return action
-}
-
-function createTextareaCommandNames(config: TuiConfig.Info) {
-  return Object.keys(config.keybinds ?? {}).reduce<Record<string, string>>((acc, keybind) => {
-    const action = resolveTextareaAction(keybind)
-    if (!action) return acc
-    acc[action] = keybind
-    return acc
-  }, {})
-}
-
-function createTextareaBindings(config: TuiConfig.Info): BindingInput[] {
-  return Object.keys(config.keybinds ?? {}).flatMap((keybind) => {
-    const action = resolveTextareaAction(keybind)
-    if (!action) return []
-    const key = resolveBindingKey(config, keybind)
-    if (!key) return []
-    return {
-      key,
-      cmd: keybind,
-    }
-  })
-}
-
-export function registerOpencodeKeymap(keymap: OpenTuiKeymap, renderer: CliRenderer, config: TuiConfig.Info) {
+export function registerOpencodeKeymap(keymap: OpenTuiKeymap, renderer: CliRenderer, config: TuiConfig.Resolved) {
   const offCommaBindings = addons.registerCommaBindings(keymap)
   const offBaseLayout = addons.registerBaseLayoutFallback(keymap)
   const offLeader = registerOpencodeLeader(keymap, config)
   const offEscape = addons.registerEscapeClearsPendingSequence(keymap)
   const offBackspace = addons.registerBackspacePopsPendingSequence(keymap)
-  const offInputBindings = addons.registerManagedTextareaLayer(
-    keymap,
-    renderer,
-    {
-      enabled: () => renderer.currentFocusedEditor !== null,
-      bindings: createTextareaBindings(config),
-    },
-    {
-      commandNames: createTextareaCommandNames(config),
-    },
-  )
+  const offInputCommands = addons.registerEditBufferCommands(keymap, renderer)
+  const offInputSuspension = addons.registerTextareaMappingSuspension(keymap, renderer)
+  const offInputBindings = keymap.registerLayer({
+    enabled: () => renderer.currentFocusedEditor !== null,
+    bindings: config.keymap.sections.input,
+  })
 
   return () => {
     offInputBindings()
+    offInputSuspension()
+    offInputCommands()
     offBackspace()
     offEscape()
     offLeader()
@@ -141,7 +82,7 @@ export function registerOpencodeKeymap(keymap: OpenTuiKeymap, renderer: CliRende
   }
 }
 
-function firstRegisteredBinding(command: string, config: TuiConfig.Info) {
+function firstRegisteredBinding(command: string, config: TuiConfig.Resolved) {
   return (keymap: OpenTuiKeymap) => {
     const entry = keymap
       .getCommandEntries({ visibility: "registered" })

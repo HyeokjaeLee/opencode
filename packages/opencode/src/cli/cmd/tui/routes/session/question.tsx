@@ -7,12 +7,15 @@ import { useSDK } from "../../context/sdk"
 import { SplitBorder } from "../../component/border"
 import { useDialog } from "../../ui/dialog"
 import { useTuiConfig } from "../../context/tui-config"
-import { resolveBindingKey, useBindings } from "../../keymap"
+import { useBindings } from "../../keymap"
 
 export function QuestionPrompt(props: { request: QuestionRequest }) {
   const sdk = useSDK()
   const { theme } = useTheme()
   const tuiConfig = useTuiConfig()
+  const {
+    keymap: { sections },
+  } = tuiConfig
 
   const questions = createMemo(() => props.request.questions)
   const single = createMemo(() => questions().length === 1 && questions()[0]?.multiple !== true)
@@ -122,6 +125,19 @@ export function QuestionPrompt(props: { request: QuestionRequest }) {
 
   useBindings(() => ({
     enabled: store.editing && !confirm(),
+    commands: [
+      {
+        name: "question.edit.clear",
+        run() {
+          const text = textarea?.plainText ?? ""
+          if (!text) {
+            setStore("editing", false)
+            return
+          }
+          textarea?.setText("")
+        },
+      },
+    ],
     bindings: [
       {
         key: "escape",
@@ -129,23 +145,7 @@ export function QuestionPrompt(props: { request: QuestionRequest }) {
           setStore("editing", false)
         },
       },
-      ...(() => {
-        const key = resolveBindingKey(tuiConfig, "input_clear")
-        if (!key) return []
-        return [
-          {
-            key,
-            cmd: () => {
-              const text = textarea?.plainText ?? ""
-              if (!text) {
-                setStore("editing", false)
-                return
-              }
-              textarea?.setText("")
-            },
-          },
-        ]
-      })(),
+      ...sections.question_edit,
       {
         key: "return",
         cmd: () => {
@@ -196,10 +196,17 @@ export function QuestionPrompt(props: { request: QuestionRequest }) {
     const opts = options()
     const total = opts.length + (custom() ? 1 : 0)
     const max = Math.min(total, 9)
-    const appExit = resolveBindingKey(tuiConfig, "app_exit")
 
     return {
       enabled: dialog.stack.length === 0 && !store.editing,
+      commands: [
+        {
+          name: "question.reject",
+          run() {
+            reject()
+          },
+        },
+      ],
       bindings: [
         { key: "left", cmd: () => selectTab((store.tab - 1 + tabs()) % tabs()) },
         { key: "h", cmd: () => selectTab((store.tab - 1 + tabs()) % tabs()) },
@@ -215,7 +222,7 @@ export function QuestionPrompt(props: { request: QuestionRequest }) {
           ? [
               { key: "return", cmd: () => submit() },
               { key: "escape", cmd: () => reject() },
-              ...(appExit ? [{ key: appExit, cmd: () => reject() }] : []),
+              ...sections.question,
             ]
           : [
               ...Array.from({ length: max }, (_, index) => ({
@@ -231,7 +238,7 @@ export function QuestionPrompt(props: { request: QuestionRequest }) {
               { key: "j", cmd: () => moveTo((store.selected + 1) % total) },
               { key: "return", cmd: () => selectOption() },
               { key: "escape", cmd: () => reject() },
-              ...(appExit ? [{ key: appExit, cmd: () => reject() }] : []),
+              ...sections.question,
             ]),
       ],
     }

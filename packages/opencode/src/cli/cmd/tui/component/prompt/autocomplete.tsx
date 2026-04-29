@@ -87,6 +87,9 @@ export function Autocomplete(props: {
   const dimensions = useTerminalDimensions()
   const frecency = useFrecency()
   const tuiConfig = useTuiConfig()
+  const {
+    keymap: { sections },
+  } = tuiConfig
   const [store, setStore] = createStore({
     index: 0,
     selected: 0,
@@ -562,15 +565,7 @@ export function Autocomplete(props: {
         },
       },
     ],
-    bindings: [
-      { key: "up", cmd: "prompt.autocomplete.prev" },
-      { key: "ctrl+p", cmd: "prompt.autocomplete.prev" },
-      { key: "down", cmd: "prompt.autocomplete.next" },
-      { key: "ctrl+n", cmd: "prompt.autocomplete.next" },
-      { key: "escape", cmd: "prompt.autocomplete.hide" },
-      { key: "return", cmd: "prompt.autocomplete.select" },
-      { key: "tab", cmd: "prompt.autocomplete.complete" },
-    ],
+    bindings: sections.prompt_autocomplete,
   }))
 
   function show(mode: "@" | "/") {

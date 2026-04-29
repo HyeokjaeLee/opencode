@@ -29,11 +29,7 @@ const tui: TuiPlugin = async (api) => {
         },
       },
     ],
-    bindings: (() => {
-      const key = (api.tuiConfig.keybinds as Record<string, string | undefined> | undefined)?.tips_toggle
-      if (!key || key === "none") return []
-      return [{ key, cmd: "tips.toggle" }]
-    })(),
+    bindings: api.tuiConfig.keymap.sections.home_tips,
   })
 
   api.slots.register({

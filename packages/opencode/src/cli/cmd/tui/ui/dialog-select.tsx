@@ -1,4 +1,12 @@
-import { InputRenderable, RGBA, ScrollBoxRenderable, TextAttributes } from "@opentui/core"
+import {
+  InputRenderable,
+  RGBA,
+  ScrollBoxRenderable,
+  TextAttributes,
+  type KeyEvent,
+  type Renderable,
+} from "@opentui/core"
+import type { BindingInput } from "@opentui/keymap"
 import { useTheme, selectedForeground } from "@tui/context/theme"
 import { entries, filter, flatMap, groupBy, pipe } from "remeda"
 import { batch, createEffect, createMemo, For, Show, type JSX, on } from "solid-js"
@@ -10,7 +18,7 @@ import { useDialog, type DialogContext } from "@tui/ui/dialog"
 import { Locale } from "@/util/locale"
 import { getScrollAcceleration } from "../util/scroll"
 import { useTuiConfig } from "../context/tui-config"
-import { formatBindingLabel, resolveBindingKey, useBindings } from "../keymap"
+import { formatKeySequence, useBindings, useKeymapSelector } from "../keymap"
 
 export interface DialogSelectProps<T> {
   title: string
@@ -23,12 +31,13 @@ export interface DialogSelectProps<T> {
   onSelect?: (option: DialogSelectOption<T>) => void
   skipFilter?: boolean
   actions?: {
-    binding?: string
+    command: string
     title: string
     side?: "left" | "right"
     disabled?: boolean
     onTrigger: (option: DialogSelectOption<T>) => void
   }[]
+  bindings?: readonly BindingInput<Renderable, KeyEvent>[]
   current?: T
 }
 
@@ -51,20 +60,13 @@ export type DialogSelectRef<T> = {
   filtered: DialogSelectOption<T>[]
 }
 
-const defaultBindings = [
-  { cmd: "dialog.select.prev", desc: "Previous item" },
-  { cmd: "dialog.select.next", desc: "Next item" },
-  { cmd: "dialog.select.page_up", desc: "Previous page" },
-  { cmd: "dialog.select.page_down", desc: "Next page" },
-  { cmd: "dialog.select.home", desc: "First item" },
-  { cmd: "dialog.select.end", desc: "Last item" },
-  { cmd: "dialog.select.submit", desc: "Select item" },
-] as const
-
 export function DialogSelect<T>(props: DialogSelectProps<T>) {
   const dialog = useDialog()
   const { theme } = useTheme()
   const tuiConfig = useTuiConfig()
+  const {
+    keymap: { sections },
+  } = tuiConfig
   const scrollAcceleration = createMemo(() => getScrollAcceleration(tuiConfig))
 
   const [store, setStore] = createStore({
@@ -89,14 +91,29 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
 
   let input: InputRenderable
 
-  const actions = createMemo(() =>
-    (props.actions ?? []).map((item, index) => ({
-      ...item,
-      command: `dialog.select.action.${index}`,
-      key: resolveBindingKey(tuiConfig, item.binding),
-      label: formatBindingLabel(tuiConfig, item.binding),
-    })),
-  )
+  const actions = createMemo(() => props.actions ?? [])
+  const registeredBindings = useKeymapSelector((keymap) => keymap.getCommandEntries({ visibility: "registered" }))
+
+  const actionLabels = createMemo(() => {
+    const commands = new Set(actions().map((item) => item.command))
+    const labels = new Map<string, string>()
+
+    for (const entry of registeredBindings()) {
+      if (!commands.has(entry.command.name)) continue
+      const seen = new Set<string>()
+      const formatted = entry.bindings
+        .map((binding) => formatKeySequence(binding.sequence, tuiConfig))
+        .filter((item) => {
+          if (!item || seen.has(item)) return false
+          seen.add(item)
+          return true
+        })
+
+      if (formatted.length > 0) labels.set(entry.command.name, formatted.join(", "))
+    }
+
+    return labels
+  })
 
   const filtered = createMemo(() => {
     if (props.skipFilter) return props.options.filter((x) => x.disabled !== true)
@@ -209,89 +226,84 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
     }
   }
 
-  useBindings(() => ({
-    commands: [
-      {
-        name: "dialog.select.prev",
-        run() {
-          setStore("input", "keyboard")
-          move(-1)
+  function submit() {
+    setStore("input", "keyboard")
+    const option = selected()
+    if (!option) return
+    option.onSelect?.(dialog)
+    props.onSelect?.(option)
+  }
+
+  useBindings(() => {
+    const enabledActions = actions().filter((item) => !item.disabled)
+
+    return {
+      commands: [
+        {
+          name: "dialog.select.prev",
+          run() {
+            setStore("input", "keyboard")
+            move(-1)
+          },
         },
-      },
-      {
-        name: "dialog.select.next",
-        run() {
-          setStore("input", "keyboard")
-          move(1)
+        {
+          name: "dialog.select.next",
+          run() {
+            setStore("input", "keyboard")
+            move(1)
+          },
         },
-      },
-      {
-        name: "dialog.select.page_up",
-        run() {
-          setStore("input", "keyboard")
-          move(-10)
+        {
+          name: "dialog.select.page_up",
+          run() {
+            setStore("input", "keyboard")
+            move(-10)
+          },
         },
-      },
-      {
-        name: "dialog.select.page_down",
-        run() {
-          setStore("input", "keyboard")
-          move(10)
+        {
+          name: "dialog.select.page_down",
+          run() {
+            setStore("input", "keyboard")
+            move(10)
+          },
         },
-      },
-      {
-        name: "dialog.select.home",
-        run() {
-          setStore("input", "keyboard")
-          moveTo(0)
+        {
+          name: "dialog.select.home",
+          run() {
+            setStore("input", "keyboard")
+            moveTo(0)
+          },
         },
-      },
-      {
-        name: "dialog.select.end",
-        run() {
-          setStore("input", "keyboard")
-          moveTo(flat().length - 1)
+        {
+          name: "dialog.select.end",
+          run() {
+            setStore("input", "keyboard")
+            moveTo(flat().length - 1)
+          },
         },
-      },
-      {
-        name: "dialog.select.submit",
-        run() {
-          setStore("input", "keyboard")
-          const option = selected()
-          if (!option) return
-          option.onSelect?.(dialog)
-          props.onSelect?.(option)
+        {
+          name: "dialog.select.submit",
+          run: submit,
         },
-      },
-      ...actions().map((item) => ({
-        name: item.command,
-        run() {
-          setStore("input", "keyboard")
-          const option = selected()
-          if (!option || item.disabled) return
-          item.onTrigger(option)
-        },
-      })),
-    ],
-    bindings: [
-      ...defaultBindings.flatMap((item) => {
-        const key = resolveBindingKey(tuiConfig, item.cmd)
-        if (!key) return []
-        return {
-          key,
-          cmd: item.cmd,
-          desc: item.desc,
-        }
-      }),
-      ...actions().flatMap((item) => {
-        if (item.disabled || !item.key) return []
-        return {
-          key: item.key,
-          cmd: item.command,
-        }
-      }),
-    ],
-  }))
+        ...enabledActions.map((item) => ({
+          name: item.command,
+          run() {
+            setStore("input", "keyboard")
+            const option = selected()
+            if (!option) return
+            item.onTrigger(option)
+          },
+        })),
+      ],
+      bindings: [
+        ...sections.dialog_select,
+        ...(props.bindings ?? []).filter((binding) => {
+          if (typeof binding.cmd !== "string") return true
+          return enabledActions.some((item) => item.command === binding.cmd)
+        }),
+      ],
+    }
+  })
 
   let scroll: ScrollBoxRenderable | undefined
   const ref: DialogSelectRef<T> = {
@@ -304,7 +316,11 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
   }
   props.ref?.(ref)
 
-  const visibleActions = createMemo(() => actions().filter((item) => !item.disabled && item.label))
+  const visibleActions = createMemo(() =>
+    actions()
+      .map((item) => ({ ...item, label: actionLabels().get(item.command) ?? "" }))
+      .filter((item) => !item.disabled && item.label),
+  )
   const left = createMemo(() => visibleActions().filter((item) => item.side !== "right"))
   const right = createMemo(() => visibleActions().filter((item) => item.side === "right"))
 

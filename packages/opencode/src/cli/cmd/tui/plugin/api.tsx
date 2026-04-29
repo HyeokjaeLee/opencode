@@ -25,7 +25,7 @@ type RouteEntry = {
 export type RouteMap = Map<string, RouteEntry[]>
 
 type Input = {
-  tuiConfig: TuiConfig.Info
+  tuiConfig: TuiConfig.Resolved
   dialog: ReturnType<typeof useDialog>
   keymap: ReturnType<typeof useOpencodeKeymap>
   kv: ReturnType<typeof useKV>

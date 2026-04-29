@@ -15,7 +15,7 @@ import { Global } from "@opencode-ai/core/global"
 import { useDialog } from "../../ui/dialog"
 import { getScrollAcceleration } from "../../util/scroll"
 import { useTuiConfig } from "../../context/tui-config"
-import { formatBindingLabel, resolveBindingKey, useBindings } from "../../keymap"
+import { useBindings, useCommandShortcut } from "../../keymap"
 
 type PermissionStage = "permission" | "always" | "reject"
 
@@ -461,14 +461,25 @@ function RejectPrompt(props: { onConfirm: (message: string) => void; onCancel: (
   let input: TextareaRenderable
   const { theme } = useTheme()
   const tuiConfig = useTuiConfig()
+  const {
+    keymap: { sections },
+  } = tuiConfig
   const dimensions = useTerminalDimensions()
   const narrow = createMemo(() => dimensions().width < 80)
   const dialog = useDialog()
   useBindings(() => ({
     enabled: dialog.stack.length === 0,
+    commands: [
+      {
+        name: "permission.reject.cancel",
+        run() {
+          props.onCancel()
+        },
+      },
+    ],
     bindings: [
       { key: "escape", cmd: () => props.onCancel() },
-      ...(resolveBindingKey(tuiConfig, "app_exit") ? [{ key: resolveBindingKey(tuiConfig, "app_exit")!, cmd: () => props.onCancel() }] : []),
+      ...sections.permission_reject,
       { key: "return", cmd: () => props.onConfirm(input.plainText) },
     ],
   }))
@@ -535,6 +546,9 @@ function Prompt<const T extends Record<string, string>>(props: {
 }) {
   const { theme } = useTheme()
   const tuiConfig = useTuiConfig()
+  const {
+    keymap: { sections },
+  } = tuiConfig
   const dimensions = useTerminalDimensions()
   const keys = Object.keys(props.options) as (keyof T)[]
   const [store, setStore] = createStore({
@@ -543,10 +557,26 @@ function Prompt<const T extends Record<string, string>>(props: {
   })
   const narrow = createMemo(() => dimensions().width < 80)
   const dialog = useDialog()
-  const fullscreenHint = createMemo(() => formatBindingLabel(tuiConfig, "ctrl+f"))
+  const fullscreenHint = useCommandShortcut("permission.prompt.fullscreen")
 
   useBindings(() => ({
     enabled: dialog.stack.length === 0,
+    commands: [
+      {
+        name: "permission.prompt.escape",
+        run() {
+          if (!props.escapeKey) return
+          props.onSelect(props.escapeKey)
+        },
+      },
+      {
+        name: "permission.prompt.fullscreen",
+        run() {
+          if (!props.fullscreen) return
+          setStore("expanded", (v) => !v)
+        },
+      },
+    ],
     bindings: [
       {
         key: "left",
@@ -582,10 +612,8 @@ function Prompt<const T extends Record<string, string>>(props: {
       },
       { key: "return", cmd: () => props.onSelect(store.selected) },
       ...(props.escapeKey ? [{ key: "escape", cmd: () => props.onSelect(props.escapeKey!) }] : []),
-      ...(props.escapeKey && resolveBindingKey(tuiConfig, "app_exit")
-        ? [{ key: resolveBindingKey(tuiConfig, "app_exit")!, cmd: () => props.onSelect(props.escapeKey!) }]
-        : []),
-      ...(props.fullscreen ? [{ key: "ctrl+f", cmd: () => setStore("expanded", (v) => !v) }] : []),
+      ...(props.escapeKey ? sections.permission_prompt_escape : []),
+      ...(props.fullscreen ? sections.permission_prompt_fullscreen : []),
     ],
   }))
 

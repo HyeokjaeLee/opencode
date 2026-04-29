@@ -6,6 +6,7 @@ import { DialogSelect, type DialogSelectRef, type DialogSelectOption } from "@tu
 import { useTheme } from "../context/theme"
 import { TextAttributes } from "@opentui/core"
 import { useSDK } from "@tui/context/sdk"
+import { useTuiConfig } from "../context/tui-config"
 
 function Status(props: { enabled: boolean; loading: boolean }) {
   const { theme } = useTheme()
@@ -22,6 +23,9 @@ export function DialogMcp() {
   const local = useLocal()
   const sync = useSync()
   const sdk = useSDK()
+  const {
+    keymap: { sections },
+  } = useTuiConfig()
   const [, setRef] = createSignal<DialogSelectRef<unknown>>()
   const [loading, setLoading] = createSignal<string | null>(null)
 
@@ -46,7 +50,7 @@ export function DialogMcp() {
 
   const actions = createMemo(() => [
     {
-      binding: "space",
+      command: "dialog.mcp.toggle",
       title: "toggle",
       onTrigger: async (option: DialogSelectOption<string>) => {
         // Prevent toggling while an operation is already in progress
@@ -77,6 +81,7 @@ export function DialogMcp() {
       title="MCPs"
       options={options()}
       actions={actions()}
+      bindings={sections.dialog_mcp}
       onSelect={(_option) => {
         // Don't close on select, only on escape
       }}

@@ -84,7 +84,7 @@ type Opts = {
   renderer?: HostPluginApi["renderer"]
   count?: Count
   keymap?: HostPluginApi["keymap"]
-  tuiConfig?: HostPluginApi["tuiConfig"]
+  tuiConfig?: Partial<HostPluginApi["tuiConfig"]>
   app?: Partial<HostPluginApi["app"]>
   state?: {
     ready?: HostPluginApi["state"]["ready"]
@@ -105,6 +105,16 @@ type Opts = {
     mode?: HostPluginApi["theme"]["mode"]
     ready?: boolean
     current?: HostPluginApi["theme"]["current"]
+  }
+}
+
+function tuiConfig(input?: Partial<HostPluginApi["tuiConfig"]>): HostPluginApi["tuiConfig"] {
+  return {
+    ...input,
+    keymap: input?.keymap ?? {
+      leader: "ctrl+x",
+      sections: {},
+    },
   }
 }
 
@@ -252,7 +262,7 @@ export function createTuiPluginApi(opts: Opts = {}): HostPluginApi {
         },
       },
     },
-    tuiConfig: opts.tuiConfig ?? {},
+    tuiConfig: tuiConfig(opts.tuiConfig),
     kv: {
       get: kvGet,
       set(name, value) {

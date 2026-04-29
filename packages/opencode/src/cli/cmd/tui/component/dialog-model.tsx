@@ -8,11 +8,15 @@ import { createDialogProviderOptions, DialogProvider } from "./dialog-provider"
 import { DialogVariant } from "./dialog-variant"
 import * as fuzzysort from "fuzzysort"
 import { useConnected } from "./use-connected"
+import { useTuiConfig } from "../context/tui-config"
 
 export function DialogModel(props: { providerID?: string }) {
   const local = useLocal()
   const sync = useSync()
   const dialog = useDialog()
+  const {
+    keymap: { sections },
+  } = useTuiConfig()
   const [query, setQuery] = createSignal("")
 
   const connected = useConnected()
@@ -150,14 +154,14 @@ export function DialogModel(props: { providerID?: string }) {
       options={options()}
       actions={[
         {
-          binding: "model_provider_list",
+          command: "dialog.model.provider.list",
           title: connected() ? "Connect provider" : "View all providers",
           onTrigger() {
             dialog.replace(() => <DialogProvider />)
           },
         },
         {
-          binding: "model_favorite_toggle",
+          command: "dialog.model.favorite.toggle",
           title: "Favorite",
           disabled: !connected(),
           onTrigger: (option) => {
@@ -165,6 +169,7 @@ export function DialogModel(props: { providerID?: string }) {
           },
         },
       ]}
+      bindings={sections.dialog_model}
       onFilter={setQuery}
       flat={true}
       skipFilter={true}
