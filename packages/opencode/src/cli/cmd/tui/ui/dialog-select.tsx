@@ -18,7 +18,7 @@ import { useDialog, type DialogContext } from "@tui/ui/dialog"
 import { Locale } from "@/util/locale"
 import { getScrollAcceleration } from "../util/scroll"
 import { useTuiConfig } from "../context/tui-config"
-import { formatKeySequence, useBindings, useKeymapSelector } from "../keymap"
+import { formatKeyBindings, useBindings, useKeymapSelector } from "../keymap"
 
 export interface DialogSelectProps<T> {
   title: string
@@ -103,16 +103,8 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
     const labels = new Map<string, string>()
 
     for (const action of actions()) {
-      const seen = new Set<string>()
-      const formatted = (actionBindings().get(action.command) ?? [])
-        .map((binding) => formatKeySequence(binding.sequence, tuiConfig))
-        .filter((item) => {
-          if (!item || seen.has(item)) return false
-          seen.add(item)
-          return true
-        })
-
-      if (formatted.length > 0) labels.set(action.command, formatted.join(", "))
+      const label = formatKeyBindings(actionBindings().get(action.command), tuiConfig)
+      if (label) labels.set(action.command, label)
     }
 
     return labels

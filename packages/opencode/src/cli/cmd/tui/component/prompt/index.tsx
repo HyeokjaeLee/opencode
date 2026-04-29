@@ -54,8 +54,8 @@ import { useCommandPalette } from "../../context/command-palette"
 import {
   useBindings,
   useCommandShortcut,
-  useDispatchCommand,
   useLeaderActive,
+  useOpencodeKeymap,
 } from "../../keymap"
 import { useTuiConfig } from "../../context/tui-config"
 
@@ -150,7 +150,7 @@ export function Prompt(props: PromptProps) {
   const history = usePromptHistory()
   const stash = usePromptStash()
   const command = useCommandPalette()
-  const dispatchCommand = useDispatchCommand()
+  const keymap = useOpencodeKeymap()
   const agentShortcut = useCommandShortcut("agent.cycle")
   const paletteShortcut = useCommandShortcut("command.palette.show")
   const renderer = useRenderer()
@@ -1276,7 +1276,7 @@ export function Prompt(props: PromptProps) {
                 // Windows Terminal <1.25 can surface image-only clipboard as an
                 // empty bracketed paste. Windows Terminal 1.25+ does not.
                 if (!pastedContent) {
-                  dispatchCommand("prompt.paste")
+                  keymap.dispatchCommand("prompt.paste")
                   return
                 }
 

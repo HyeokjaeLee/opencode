@@ -2,7 +2,7 @@ import { createContext, createMemo, createSignal, useContext, type Accessor, typ
 import { DialogSelect, type DialogSelectRef } from "@tui/ui/dialog-select"
 import { useDialog } from "@tui/ui/dialog"
 import {
-  formatKeySequence,
+  formatKeyBindings,
   reactiveMatcherFromSignal,
   type OpenTuiKeymap,
   useKeymapSelector,
@@ -32,24 +32,6 @@ type PaletteCommandEntry = ReturnType<OpenTuiKeymap["getCommandEntries"]>[number
 
 function isVisiblePaletteCommand(entry: PaletteCommandEntry) {
   return entry.command.fields.hidden !== true && entry.command.name !== COMMAND_PALETTE_DIALOG
-}
-
-function formatCommandBindings(bindings: PaletteCommandEntry["bindings"], config: ReturnType<typeof useTuiConfig>) {
-  const formatted = bindings
-    .map((binding) => formatKeySequence(binding.sequence, config))
-    .filter(Boolean)
-
-  if (formatted.length === 0) return undefined
-
-  const unique: string[] = []
-  const seen = new Set<string>()
-  for (const item of formatted) {
-    if (seen.has(item)) continue
-    seen.add(item)
-    unique.push(item)
-  }
-
-  return unique.join(", ")
 }
 
 export function CommandPaletteProvider(props: ParentProps) {
@@ -137,7 +119,7 @@ function CommandPaletteDialog(props: { run(command: string): void }) {
       title: typeof entry.command.fields.title === "string" ? entry.command.fields.title : entry.command.name,
       description: typeof entry.command.fields.desc === "string" ? entry.command.fields.desc : undefined,
       category: typeof entry.command.fields.category === "string" ? entry.command.fields.category : undefined,
-      footer: formatCommandBindings(entry.bindings, config),
+      footer: formatKeyBindings(entry.bindings, config),
       value: entry.command.name,
       suggested: entry.command.fields.suggested === true,
       onSelect: () => {

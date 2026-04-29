@@ -48,19 +48,30 @@ export function formatKeySequence(parts: readonly KeySequencePart[] | undefined,
   return parts.map((part) => formatStroke(part, config)).join(" ")
 }
 
-function registerOpencodeLeader(keymap: OpenTuiKeymap, config: TuiConfig.Resolved) {
-  const trigger = config.keymap.leader
-  return addons.registerTimedLeader(keymap, {
-    trigger,
-    name: LEADER_TOKEN,
-    timeoutMs: LEADER_TIMEOUT_MS,
-  })
+export function formatKeyBindings(
+  bindings: readonly { sequence: readonly KeySequencePart[] }[] | undefined,
+  config: TuiConfig.Resolved,
+) {
+  if (!bindings?.length) return
+  const seen = new Set<string>()
+  return bindings
+    .map((binding) => formatKeySequence(binding.sequence, config))
+    .filter((item) => {
+      if (!item || seen.has(item)) return false
+      seen.add(item)
+      return true
+    })
+    .join(", ")
 }
 
 export function registerOpencodeKeymap(keymap: OpenTuiKeymap, renderer: CliRenderer, config: TuiConfig.Resolved) {
   const offCommaBindings = addons.registerCommaBindings(keymap)
   const offBaseLayout = addons.registerBaseLayoutFallback(keymap)
-  const offLeader = registerOpencodeLeader(keymap, config)
+  const offLeader = addons.registerTimedLeader(keymap, {
+    trigger: config.keymap.leader,
+    name: LEADER_TOKEN,
+    timeoutMs: LEADER_TIMEOUT_MS,
+  })
   const offEscape = addons.registerEscapeClearsPendingSequence(keymap)
   const offBackspace = addons.registerBackspacePopsPendingSequence(keymap)
   const offInputBindings = addons.registerManagedTextareaLayer(keymap, renderer, {
@@ -87,11 +98,4 @@ export function useCommandShortcut(command: string): Accessor<string> {
 
 export function useLeaderActive(): Accessor<boolean> {
   return useKeymapSelector((keymap: OpenTuiKeymap) => keymap.getPendingSequence()[0]?.tokenName === LEADER_TOKEN)
-}
-
-export function useDispatchCommand() {
-  const keymap = useOpencodeKeymap()
-  return (command: string) => {
-    keymap.dispatchCommand(command)
-  }
 }
