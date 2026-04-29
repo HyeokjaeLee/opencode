@@ -21,7 +21,6 @@ const KeybindsSchema = Schema.Struct({
   theme_list: keybind("<leader>t", "List available themes"),
   sidebar_toggle: keybind("<leader>b", "Toggle sidebar"),
   scrollbar_toggle: keybind("none", "Toggle session scrollbar"),
-  username_toggle: keybind("none", "Toggle username visibility"),
   status_view: keybind("<leader>s", "View status"),
   session_export: keybind("<leader>x", "Export session to editor"),
   session_new: keybind("<leader>n", "Create a new session"),
