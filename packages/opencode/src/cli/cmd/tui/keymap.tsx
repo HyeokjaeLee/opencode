@@ -78,18 +78,11 @@ export function registerOpencodeKeymap(keymap: OpenTuiKeymap, renderer: CliRende
   }
 }
 
-function firstRegisteredBinding(command: string, config: TuiConfig.Resolved) {
-  return (keymap: OpenTuiKeymap) => {
-    return formatKeySequence(
-      keymap.getCommandBindings({ visibility: "registered", commands: [command] }).get(command)?.[0]?.sequence,
-      config,
-    )
-  }
-}
-
 export function useCommandShortcut(command: string): Accessor<string> {
   const config = useTuiConfig()
-  return useKeymapSelector(firstRegisteredBinding(command, config))
+  return useKeymapSelector((keymap) =>
+    formatKeySequence(keymap.getCommandBindings({ visibility: "registered", commands: [command] }).get(command)?.[0]?.sequence, config),
+  )
 }
 
 export function useLeaderActive(): Accessor<boolean> {
