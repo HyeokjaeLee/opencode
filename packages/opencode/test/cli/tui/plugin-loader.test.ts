@@ -95,12 +95,18 @@ export default {
     const cfg_speed = api.tuiConfig.scroll_speed
     const cfg_accel = api.tuiConfig.scroll_acceleration?.enabled
     const cfg_submit = api.tuiConfig.keybinds?.input_submit
-    const key_modal = options.keybinds?.modal ?? "ctrl+shift+m"
-    const key_close = options.keybinds?.close ?? "escape"
+    const keymap = api.keymap.resolveBindingSections(options.keymap?.sections ?? {
+      main: {
+        "plugin.loader.local": "ctrl+shift+m",
+        "plugin.loader.close": "escape",
+      },
+    }, { sections: ["main"] }).sections
+    const key_modal = keymap.main.find((item) => item.cmd === "plugin.loader.local")?.key
+    const key_close = keymap.main.find((item) => item.cmd === "plugin.loader.close")?.key
     const key_unknown = "ctrl+k"
     const off = api.keymap.registerLayer({
-      commands: [{ name: "plugin.loader.local", run() {} }],
-      bindings: [{ key: key_modal, cmd: "plugin.loader.local" }],
+      commands: [{ name: "plugin.loader.local", run() {} }, { name: "plugin.loader.close", run() {} }],
+      bindings: keymap.main,
     })
     off()
     const kv_before = api.kv.get(options.kv_key, "missing")
@@ -142,6 +148,7 @@ export default {
         key_close,
         key_unknown,
         has_keymap: typeof api.keymap.registerLayer === "function",
+        has_keymap_resolver: typeof api.keymap.resolveBindingSections === "function",
         has_keymap_solid: typeof useBindings === "function",
         kv_before,
         kv_after,
@@ -344,7 +351,14 @@ export default {
       theme_name: tmp.extra.localThemeName,
       kv_key: "plugin_state_key",
       session_id: "ses_test",
-      keybinds: { modal: "ctrl+alt+m", close: "q" },
+      keymap: {
+        sections: {
+          main: {
+            "plugin.loader.local": "ctrl+alt+m",
+            "plugin.loader.close": "q",
+          },
+        },
+      },
     }
     const invalidOpts = {
       marker: tmp.extra.invalidMarker,
@@ -650,6 +664,7 @@ describe("tui.plugin.loader", () => {
     expect(data.local.key_close).toBe("q")
     expect(data.local.key_unknown).toBe("ctrl+k")
     expect(data.local.has_keymap).toBe(true)
+    expect(data.local.has_keymap_resolver).toBe(true)
     expect(data.local.has_keymap_solid).toBe(true)
     expect(data.local.kv_before).toBe("missing")
     expect(data.local.kv_after).toBe("stored")

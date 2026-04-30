@@ -16,6 +16,8 @@ import { Prompt } from "../component/prompt"
 import { Slot as HostSlot } from "./slots"
 import type { useToast } from "../ui/toast"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
+import { resolvePluginBindingSections } from "../keymap-resolver"
+import { formatKeyBindings } from "../keymap-format"
 
 type RouteEntry = {
   key: symbol
@@ -197,10 +199,21 @@ export function createTuiApi(input: Input): TuiPluginApi {
       return () => {}
     },
   }
+  const keymap: TuiPluginApi["keymap"] = Object.assign(Object.create(input.keymap), {
+    formatCommandBindings(command: string) {
+      return (
+        formatKeyBindings(
+          input.keymap.getCommandBindings({ visibility: "registered", commands: [command] }).get(command),
+          input.tuiConfig,
+        ) ?? ""
+      )
+    },
+    resolveBindingSections: resolvePluginBindingSections,
+  })
 
   return {
     app: appApi(),
-    keymap: input.keymap,
+    keymap,
     route: {
       register(list) {
         return routeRegister(input.routes, list, input.bump)

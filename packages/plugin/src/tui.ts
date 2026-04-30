@@ -17,6 +17,7 @@ import type {
 } from "@opencode-ai/sdk/v2"
 import type { CliRenderer, KeyEvent, RGBA, Renderable, SlotMode } from "@opentui/core"
 import type { BindingInput, Keymap } from "@opentui/keymap"
+import type { BindingSectionsConfig } from "@opentui/keymap/extras"
 import type { JSX, SolidPlugin } from "@opentui/solid"
 import type { Config as PluginConfig, PluginOptions } from "./index.js"
 
@@ -43,7 +44,15 @@ export type TuiRouteDefinition = {
   render: (input: { params?: Record<string, unknown> }) => JSX.Element
 }
 
-export type TuiKeymap = Keymap<Renderable, KeyEvent>
+export type TuiKeymap = Keymap<Renderable, KeyEvent> & {
+  formatCommandBindings: (command: string) => string
+  resolveBindingSections: <Section extends string>(
+    config: BindingSectionsConfig<Renderable, KeyEvent> | undefined,
+    options: { sections: readonly Section[] },
+  ) => {
+    sections: Record<Section, BindingInput<Renderable, KeyEvent>[]>
+  }
+}
 
 export type TuiDialogProps = {
   size?: "medium" | "large" | "xlarge"

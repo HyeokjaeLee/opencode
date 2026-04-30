@@ -1,5 +1,4 @@
 import { type CliRenderer } from "@opentui/core"
-import { stringifyKeyStroke, type KeySequencePart } from "@opentui/keymap"
 import * as addons from "@opentui/keymap/addons/opentui"
 import {
   KeymapProvider,
@@ -11,58 +10,17 @@ import {
 import type { Accessor } from "solid-js"
 import type { TuiConfig } from "./config/tui"
 import { useTuiConfig } from "./context/tui-config"
+import { formatKeySequence, LEADER_TOKEN } from "./keymap-format"
 
 const LEADER_TIMEOUT_MS = 2000
-const LEADER_TOKEN = "<leader>"
 
 export const OpencodeKeymapProvider = KeymapProvider
 export const useOpencodeKeymap = useKeymap
 
 export { reactiveMatcherFromSignal, useBindings, useKeymapSelector }
+export { formatKeyBindings, formatKeySequence } from "./keymap-format"
 
 export type OpenTuiKeymap = ReturnType<typeof useKeymap>
-
-function formatKeyName(name: string) {
-  if (name === "pageup") return "pgup"
-  if (name === "pagedown") return "pgdn"
-  if (name === "delete") return "del"
-  if (name === "return") return "enter"
-  return name
-}
-
-function formatStroke(part: KeySequencePart, config: TuiConfig.Resolved) {
-  if (part.tokenName === LEADER_TOKEN) return config.keymap.leader
-  if (part.tokenName) return part.display
-
-  const pieces: string[] = []
-  if (part.stroke.ctrl) pieces.push("ctrl")
-  if (part.stroke.meta) pieces.push("alt")
-  if (part.stroke.super) pieces.push("super")
-  if (part.stroke.shift) pieces.push("shift")
-  pieces.push(formatKeyName(part.stroke.name || stringifyKeyStroke(part, { preferDisplay: true })))
-  return pieces.join("+")
-}
-
-export function formatKeySequence(parts: readonly KeySequencePart[] | undefined, config: TuiConfig.Resolved) {
-  if (!parts || parts.length === 0) return ""
-  return parts.map((part) => formatStroke(part, config)).join(" ")
-}
-
-export function formatKeyBindings(
-  bindings: readonly { sequence: readonly KeySequencePart[] }[] | undefined,
-  config: TuiConfig.Resolved,
-) {
-  if (!bindings?.length) return
-  const seen = new Set<string>()
-  return bindings
-    .map((binding) => formatKeySequence(binding.sequence, config))
-    .filter((item) => {
-      if (!item || seen.has(item)) return false
-      seen.add(item)
-      return true
-    })
-    .join(", ")
-}
 
 export function registerOpencodeKeymap(keymap: OpenTuiKeymap, renderer: CliRenderer, config: TuiConfig.Resolved) {
   const offCommaBindings = addons.registerCommaBindings(keymap)
