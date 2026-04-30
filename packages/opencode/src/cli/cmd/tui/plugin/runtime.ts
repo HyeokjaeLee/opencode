@@ -1,16 +1,5 @@
-import { plugin as registerBunPlugin } from "bun"
-import * as coreRuntime from "@opentui/core"
-import { createRuntimePlugin, isCoreRuntimeModuleSpecifier, runtimeModuleIdForSpecifier, type RuntimeModuleEntry } from "@opentui/core/runtime-plugin"
-import * as solidRuntime from "@opentui/solid"
-import { ensureSolidTransformPlugin } from "@opentui/solid/bun-plugin"
-import * as keymapRuntime from "@opentui/keymap"
-import * as keymapAddonsRuntime from "@opentui/keymap/addons"
-import * as keymapOpenTuiAddonsRuntime from "@opentui/keymap/addons/opentui"
-import * as keymapExtrasRuntime from "@opentui/keymap/extras"
-import * as keymapOpenTuiRuntime from "@opentui/keymap/opentui"
-import * as keymapSolidRuntime from "@opentui/keymap/solid"
-import * as solidJsRuntime from "solid-js"
-import * as solidJsStoreRuntime from "solid-js/store"
+import { runtimeModules as keymapRuntimeModules } from "@opentui/keymap/runtime-modules"
+import { ensureRuntimePluginSupport } from "@opentui/solid/runtime-plugin-support/configure"
 import {
   type TuiDispose,
   type TuiPlugin,
@@ -51,47 +40,7 @@ import { setupSlots, Slot as View } from "./slots"
 import type { HostPluginApi, HostSlots } from "./slots"
 import { ConfigPlugin } from "@/config/plugin"
 
-const runtimePluginSupportInstalledKey = Symbol.for("opencode.tui.runtime-plugin-support")
-
-type RuntimePluginSupportState = typeof globalThis & {
-  [runtimePluginSupportInstalledKey]?: boolean
-}
-
-const runtimeModules: Record<string, RuntimeModuleEntry> = {
-  "@opentui/solid": solidRuntime as Record<string, unknown>,
-  "solid-js": solidJsRuntime as Record<string, unknown>,
-  "solid-js/store": solidJsStoreRuntime as Record<string, unknown>,
-  "@opentui/keymap": keymapRuntime,
-  "@opentui/keymap/addons": keymapAddonsRuntime,
-  "@opentui/keymap/addons/opentui": keymapOpenTuiAddonsRuntime,
-  "@opentui/keymap/extras": keymapExtrasRuntime,
-  "@opentui/keymap/opentui": keymapOpenTuiRuntime,
-  "@opentui/keymap/solid": keymapSolidRuntime,
-}
-
-function ensureTuiRuntimePluginSupport() {
-  const state = globalThis as RuntimePluginSupportState
-  if (state[runtimePluginSupportInstalledKey]) return
-
-  ensureSolidTransformPlugin({
-    moduleName: runtimeModuleIdForSpecifier("@opentui/solid"),
-    resolvePath(specifier) {
-      if (!isCoreRuntimeModuleSpecifier(specifier) && !runtimeModules[specifier]) return null
-      return runtimeModuleIdForSpecifier(specifier)
-    },
-  })
-
-  registerBunPlugin(
-    createRuntimePlugin({
-      core: coreRuntime as Record<string, unknown>,
-      additional: runtimeModules,
-    }),
-  )
-
-  state[runtimePluginSupportInstalledKey] = true
-}
-
-ensureTuiRuntimePluginSupport()
+ensureRuntimePluginSupport({ additional: keymapRuntimeModules })
 
 type PluginLoad = {
   options: ConfigPlugin.Options | undefined
