@@ -16,6 +16,7 @@ import { Prompt } from "../component/prompt"
 import { Slot as HostSlot } from "./slots"
 import type { useToast } from "../ui/toast"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
+import * as Keymap from "../keymap"
 
 type RouteEntry = {
   key: symbol
@@ -199,6 +200,14 @@ export function createTuiApi(input: Input): TuiPluginApi {
   }
   return {
     app: appApi(),
+    keys: {
+      formatSequence(parts) {
+        return Keymap.formatKeySequence(parts, input.tuiConfig)
+      },
+      formatBindings(bindings) {
+        return Keymap.formatKeyBindings(bindings, input.tuiConfig)
+      },
+    },
     keymap: input.keymap,
     route: {
       register(list) {

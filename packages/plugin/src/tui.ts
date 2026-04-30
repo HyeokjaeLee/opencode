@@ -17,7 +17,12 @@ import type {
 } from "@opencode-ai/sdk/v2"
 import type { CliRenderer, KeyEvent, RGBA, Renderable, SlotMode } from "@opentui/core"
 import type { BindingInput, Keymap } from "@opentui/keymap"
-import { resolveBindingSections as resolveKeymapBindingSections, type BindingSectionsConfig } from "@opentui/keymap/extras"
+import {
+  resolveBindingSections as resolveKeymapBindingSections,
+  type BindingSectionsConfig,
+  type KeySequenceFormatPart,
+  type SequenceBindingLike,
+} from "@opentui/keymap/extras"
 import type { JSX, SolidPlugin } from "@opentui/solid"
 import type { Config as PluginConfig, PluginOptions } from "./index.js"
 
@@ -25,7 +30,14 @@ export type { CliRenderer, KeyEvent, Renderable, SlotMode } from "@opentui/core"
 export { stringifyKeySequence, stringifyKeyStroke } from "@opentui/keymap"
 export type { BindingInput, KeyLike, KeySequencePart, KeyStringifyInput, StringifyOptions } from "@opentui/keymap"
 export { formatCommandBindings, formatKeySequence } from "@opentui/keymap/extras"
-export type { BindingSectionsConfig, BindingValue, FormatCommandBindingsOptions, FormatKeySequenceOptions } from "@opentui/keymap/extras"
+export type {
+  BindingSectionsConfig,
+  BindingValue,
+  FormatCommandBindingsOptions,
+  FormatKeySequenceOptions,
+  KeySequenceFormatPart,
+  SequenceBindingLike,
+} from "@opentui/keymap/extras"
 
 export function resolveBindingSections<Section extends string>(
   config: BindingSectionsConfig<Renderable, KeyEvent> | undefined,
@@ -56,6 +68,11 @@ export type TuiRouteCurrent =
 export type TuiRouteDefinition = {
   name: string
   render: (input: { params?: Record<string, unknown> }) => JSX.Element
+}
+
+export type TuiKeys = {
+  formatSequence: (parts: readonly KeySequenceFormatPart[] | undefined) => string
+  formatBindings: (bindings: readonly SequenceBindingLike[] | undefined) => string | undefined
 }
 
 export type TuiKeymap = Keymap<Renderable, KeyEvent>
@@ -436,6 +453,7 @@ export type TuiWorkspace = {
 
 export type TuiPluginApi = {
   app: TuiApp
+  keys: TuiKeys
   keymap: TuiKeymap
   route: {
     register: (routes: TuiRouteDefinition[]) => () => void

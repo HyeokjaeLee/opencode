@@ -1,6 +1,9 @@
 import { type CliRenderer } from "@opentui/core"
 import * as addons from "@opentui/keymap/addons/opentui"
-import { formatCommandBindings as formatCommandBindingsExtra, formatKeySequence as formatKeySequenceExtra } from "@opentui/keymap/extras"
+import {
+  formatCommandBindings as formatCommandBindingsExtra,
+  formatKeySequence as formatKeySequenceExtra,
+} from "@opentui/keymap/extras"
 import {
   KeymapProvider,
   reactiveMatcherFromSignal,
@@ -13,7 +16,7 @@ import type { TuiConfig } from "./config/tui"
 import { useTuiConfig } from "./context/tui-config"
 
 const LEADER_TIMEOUT_MS = 2000
-const LEADER_TOKEN = "<leader>"
+export const LEADER_TOKEN = "<leader>"
 
 export const OpencodeKeymapProvider = KeymapProvider
 export const useOpencodeKeymap = useKeymap

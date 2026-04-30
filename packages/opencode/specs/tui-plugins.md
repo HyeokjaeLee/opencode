@@ -202,6 +202,7 @@ That is what makes local config-scoped plugins able to import `@opencode-ai/plug
 Top-level API groups exposed to `tui(api, options, meta)`:
 
 - `api.app.version`
+- `api.keys.formatSequence(parts)`, `formatBindings(bindings)`
 - `api.keymap`
 - `api.route.register(routes)` / `api.route.navigate(name, params?)` / `api.route.current`
 - `api.ui.Dialog`, `DialogAlert`, `DialogConfirm`, `DialogPrompt`, `DialogSelect`, `Slot`, `Prompt`, `ui.toast`, `ui.dialog`
@@ -222,11 +223,17 @@ Top-level API groups exposed to `tui(api, options, meta)`:
 - The host already installs the default OpenTUI bundle (`default keys`, metadata fields, and enabled fields) plus OpenCode's comma bindings, leader token, base layout fallback, pending-sequence helpers, and managed textarea layer.
 - Register commands with `api.keymap.registerLayer({ commands: [...] })`.
 - Register key bindings with `bindings: [{ key, cmd, desc }]` in the same layer or a separate layer.
-- Use `api.keymap.resolveBindingSections(config, { sections })` to resolve plugin option keymap sections with the same schema as host `tui.json` keymap config.
 - Use `api.keymap.acquireResource(...)` for shared plugin addon setup that should ref-count against the host keymap.
 - To surface a command in the host command palette, set `namespace: "palette"` and provide metadata such as `title`, `category`, `desc`, `suggested`, `hidden`, `enabled`, `slashName`, and `slashAliases` on the command.
 - Use `api.keymap.dispatchCommand(name)` for user-style execution semantics and `api.keymap.runCommand(name)` only for forced programmatic execution.
 - Disposers returned by `api.keymap` registrations and `acquireResource(...)` are automatically cleaned up when the plugin deactivates. You do not need to add those disposers to `api.lifecycle.onDispose(...)` yourself.
+
+### Keys
+
+- `api.keys` exposes host-formatted shortcut display helpers for plugin UI.
+- `formatSequence(parts)` formats parsed key sequence parts using the host's display policy.
+- `formatBindings(bindings)` formats binding lists and returns `undefined` when there is nothing to show.
+- For generic config-to-bindings helpers, import `resolveBindingSections` from `@opencode-ai/plugin/tui`.
 
 ### Routes
 

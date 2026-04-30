@@ -3,7 +3,6 @@ import { useTerminalDimensions, type JSX } from "@opentui/solid"
 import { useBindings, useKeymapSelector } from "@opentui/keymap/solid"
 import { RGBA, VignetteEffect, type KeyEvent, type Renderable } from "@opentui/core"
 import {
-  formatCommandBindings,
   resolveBindingSections,
   type BindingSectionsConfig,
   type BindingValue,
@@ -157,28 +156,6 @@ function createKeys(input: SmokeKeymap | undefined) {
 }
 
 type Keys = ReturnType<typeof createKeys>
-
-const formatOptions = (leader: string) => ({
-  tokenDisplay: {
-    "<leader>": leader,
-  },
-  keyNameAliases: {
-    pageup: "pgup",
-    pagedown: "pgdn",
-    delete: "del",
-  },
-  modifierAliases: {
-    meta: "alt",
-  },
-})
-
-const shortcut = (api: TuiPluginApi, name: string) =>
-  useKeymapSelector((keymap) => {
-    return (
-      formatCommandBindings(keymap.getCommandBindings({ visibility: "registered", commands: [name] }).get(name), formatOptions(api.tuiConfig.keymap.leader)) ??
-      ""
-    )
-  })
 
 const ui = {
   panel: "#1d1d1d",
@@ -509,18 +486,40 @@ const Screen = (props: {
     ],
     bindings: props.keys.sections.screen,
   }))
-  const screenHome = shortcut(props.api, command.screen_home)
-  const screenUp = shortcut(props.api, command.screen_up)
-  const screenDown = shortcut(props.api, command.screen_down)
-  const screenModal = shortcut(props.api, command.screen_modal)
-  const screenAlert = shortcut(props.api, command.screen_alert)
-  const screenConfirm = shortcut(props.api, command.screen_confirm)
-  const screenPrompt = shortcut(props.api, command.screen_prompt)
-  const screenSelect = shortcut(props.api, command.screen_select)
-  const screenLocal = shortcut(props.api, command.screen_local)
-  const screenHost = shortcut(props.api, command.screen_host)
-  const localPush = shortcut(props.api, command.local_push)
-  const localPop = shortcut(props.api, command.local_pop)
+  const shortcuts = useKeymapSelector((keymap) => {
+    const bindings = keymap.getCommandBindings({
+      visibility: "registered",
+      commands: [
+        command.screen_home,
+        command.screen_up,
+        command.screen_down,
+        command.screen_modal,
+        command.screen_alert,
+        command.screen_confirm,
+        command.screen_prompt,
+        command.screen_select,
+        command.screen_local,
+        command.screen_host,
+        command.local_push,
+        command.local_pop,
+      ],
+    })
+
+    return {
+      screen_home: props.api.keys.formatBindings(bindings.get(command.screen_home)) ?? "",
+      screen_up: props.api.keys.formatBindings(bindings.get(command.screen_up)) ?? "",
+      screen_down: props.api.keys.formatBindings(bindings.get(command.screen_down)) ?? "",
+      screen_modal: props.api.keys.formatBindings(bindings.get(command.screen_modal)) ?? "",
+      screen_alert: props.api.keys.formatBindings(bindings.get(command.screen_alert)) ?? "",
+      screen_confirm: props.api.keys.formatBindings(bindings.get(command.screen_confirm)) ?? "",
+      screen_prompt: props.api.keys.formatBindings(bindings.get(command.screen_prompt)) ?? "",
+      screen_select: props.api.keys.formatBindings(bindings.get(command.screen_select)) ?? "",
+      screen_local: props.api.keys.formatBindings(bindings.get(command.screen_local)) ?? "",
+      screen_host: props.api.keys.formatBindings(bindings.get(command.screen_host)) ?? "",
+      local_push: props.api.keys.formatBindings(bindings.get(command.local_push)) ?? "",
+      local_pop: props.api.keys.formatBindings(bindings.get(command.local_pop)) ?? "",
+    }
+  })
 
   return (
     <box width={dim().width} height={dim().height} backgroundColor={skin.panel} position="relative">
@@ -538,7 +537,7 @@ const Screen = (props: {
             <b>{props.input.label} screen</b>
             <span style={{ fg: skin.muted }}> plugin route</span>
           </text>
-          <text fg={skin.muted}>{screenHome()} home</text>
+          <text fg={skin.muted}>{shortcuts().screen_home} home</text>
         </box>
 
         <box flexDirection="row" gap={1} paddingBottom={1}>
@@ -585,7 +584,7 @@ const Screen = (props: {
             <box flexDirection="column" gap={1}>
               <text fg={skin.text}>Counter: {value.count}</text>
               <text fg={skin.muted}>
-                {screenUp()} / {screenDown()} change value
+                {shortcuts().screen_up} / {shortcuts().screen_down} change value
               </text>
             </box>
           ) : null}
@@ -593,15 +592,15 @@ const Screen = (props: {
           {value.tab === 2 ? (
             <box flexDirection="column" gap={1}>
               <text fg={skin.muted}>
-                {screenModal()} modal | {screenAlert()} alert | {screenConfirm()} confirm | {screenPrompt()} prompt | {screenSelect()} select
+                {shortcuts().screen_modal} modal | {shortcuts().screen_alert} alert | {shortcuts().screen_confirm} confirm | {shortcuts().screen_prompt} prompt | {shortcuts().screen_select} select
               </text>
               <text fg={skin.muted}>
-                {screenLocal()} local stack | {screenHost()} host stack
+                {shortcuts().screen_local} local stack | {shortcuts().screen_host} host stack
               </text>
               <text fg={skin.muted}>
-                local open: {localPush()} push nested · {localPop()} close
+                local open: {shortcuts().local_push} push nested · {shortcuts().local_pop} close
               </text>
-              <text fg={skin.muted}>{screenHome()} returns home</text>
+              <text fg={skin.muted}>{shortcuts().screen_home} returns home</text>
             </box>
           ) : null}
         </box>
@@ -654,7 +653,7 @@ const Screen = (props: {
           </text>
           <text fg={skin.muted}>Plugin-owned stack depth: {value.local}</text>
           <text fg={skin.muted}>
-            {localPush()} push nested · {localPop()} pop/close
+            {shortcuts().local_push} push nested · {shortcuts().local_pop} pop/close
           </text>
           <box flexDirection="row" gap={1}>
             <Btn txt="push" run={push} skin={skin} on />
@@ -695,10 +694,19 @@ const Modal = (props: {
     ],
     bindings: props.keys.sections.modal,
   }))
-  const modalCommand = shortcut(props.api, command.modal)
-  const screenCommand = shortcut(props.api, command.screen)
-  const modalAccept = shortcut(props.api, command.modal_accept)
-  const modalClose = shortcut(props.api, command.modal_close)
+  const shortcuts = useKeymapSelector((keymap) => {
+    const bindings = keymap.getCommandBindings({
+      visibility: "registered",
+      commands: [command.modal, command.screen, command.modal_accept, command.modal_close],
+    })
+
+    return {
+      modal: props.api.keys.formatBindings(bindings.get(command.modal)) ?? "",
+      screen: props.api.keys.formatBindings(bindings.get(command.screen)) ?? "",
+      modal_accept: props.api.keys.formatBindings(bindings.get(command.modal_accept)) ?? "",
+      modal_close: props.api.keys.formatBindings(bindings.get(command.modal_close)) ?? "",
+    }
+  })
 
   return (
     <box width="100%" height="100%" backgroundColor={skin.panel}>
@@ -707,10 +715,10 @@ const Modal = (props: {
           <text fg={skin.text}>
             <b>{props.input.label} modal</b>
           </text>
-          <text fg={skin.muted}>{modalCommand()} modal command</text>
-          <text fg={skin.muted}>{screenCommand()} screen command</text>
+          <text fg={skin.muted}>{shortcuts().modal} modal command</text>
+          <text fg={skin.muted}>{shortcuts().screen} screen command</text>
           <text fg={skin.muted}>
-            {modalAccept()} opens screen · {modalClose()} closes
+            {shortcuts().modal_accept} opens screen · {shortcuts().modal_close} closes
           </text>
           <box flexDirection="row" gap={1}>
             <Btn

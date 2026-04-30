@@ -185,6 +185,10 @@ export function createTuiPluginApi(opts: Opts = {}): HostPluginApi {
         return opts.app?.version ?? "0.0.0-test"
       },
     },
+    keys: {
+      formatSequence: () => "",
+      formatBindings: () => undefined,
+    },
     get client() {
       return client()
     },

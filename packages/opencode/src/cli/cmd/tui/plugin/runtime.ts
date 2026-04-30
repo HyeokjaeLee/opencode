@@ -594,6 +594,7 @@ function pluginApi(runtime: RuntimeState, plugin: PluginEntry, scope: PluginScop
 
   return {
     app: api.app,
+    keys: api.keys,
     keymap,
     route,
     ui: api.ui,

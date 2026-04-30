@@ -96,6 +96,7 @@ export default {
     const cfg_speed = api.tuiConfig.scroll_speed
     const cfg_accel = api.tuiConfig.scroll_acceleration?.enabled
     const cfg_submit = api.tuiConfig.keybinds?.input_submit
+    const has_keys = typeof api.keys.formatBindings === "function"
     const keymap = resolveBindingSections(options.keymap?.sections ?? {
       main: {
         "plugin.loader.local": "ctrl+shift+m",
@@ -148,6 +149,7 @@ export default {
         key_modal,
         key_close,
         key_unknown,
+        has_keys,
         has_keymap: typeof api.keymap.registerLayer === "function",
         has_resolve_binding_sections: typeof resolveBindingSections === "function",
         has_keymap_solid: typeof useBindings === "function",
@@ -664,6 +666,7 @@ describe("tui.plugin.loader", () => {
     expect(data.local.key_modal).toBe("ctrl+alt+m")
     expect(data.local.key_close).toBe("q")
     expect(data.local.key_unknown).toBe("ctrl+k")
+    expect(data.local.has_keys).toBe(true)
     expect(data.local.has_keymap).toBe(true)
     expect(data.local.has_resolve_binding_sections).toBe(true)
     expect(data.local.has_keymap_solid).toBe(true)
