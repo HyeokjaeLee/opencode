@@ -24,7 +24,8 @@ import type { Config as PluginConfig, PluginOptions } from "./index.js"
 export type { CliRenderer, KeyEvent, Renderable, SlotMode } from "@opentui/core"
 export { stringifyKeySequence, stringifyKeyStroke } from "@opentui/keymap"
 export type { BindingInput, KeyLike, KeySequencePart, KeyStringifyInput, StringifyOptions } from "@opentui/keymap"
-export type { BindingSectionsConfig, BindingValue } from "@opentui/keymap/extras"
+export { formatCommandBindings, formatKeySequence } from "@opentui/keymap/extras"
+export type { BindingSectionsConfig, BindingValue, FormatCommandBindingsOptions, FormatKeySequenceOptions } from "@opentui/keymap/extras"
 
 export function resolveBindingSections<Section extends string>(
   config: BindingSectionsConfig<Renderable, KeyEvent> | undefined,

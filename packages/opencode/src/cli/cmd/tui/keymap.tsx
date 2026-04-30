@@ -1,5 +1,6 @@
 import { type CliRenderer } from "@opentui/core"
 import * as addons from "@opentui/keymap/addons/opentui"
+import { formatCommandBindings as formatCommandBindingsExtra, formatKeySequence as formatKeySequenceExtra } from "@opentui/keymap/extras"
 import {
   KeymapProvider,
   reactiveMatcherFromSignal,
@@ -10,17 +11,43 @@ import {
 import type { Accessor } from "solid-js"
 import type { TuiConfig } from "./config/tui"
 import { useTuiConfig } from "./context/tui-config"
-import { formatKeySequence, LEADER_TOKEN } from "./keymap-format"
 
 const LEADER_TIMEOUT_MS = 2000
+const LEADER_TOKEN = "<leader>"
 
 export const OpencodeKeymapProvider = KeymapProvider
 export const useOpencodeKeymap = useKeymap
 
 export { reactiveMatcherFromSignal, useBindings, useKeymapSelector }
-export { formatKeyBindings, formatKeySequence } from "./keymap-format"
 
 export type OpenTuiKeymap = ReturnType<typeof useKeymap>
+
+function formatOptions(config: TuiConfig.Resolved) {
+  return {
+    tokenDisplay: {
+      [LEADER_TOKEN]: config.keymap.leader,
+    },
+    keyNameAliases: {
+      pageup: "pgup",
+      pagedown: "pgdn",
+      delete: "del",
+    },
+    modifierAliases: {
+      meta: "alt",
+    },
+  } as const
+}
+
+export function formatKeySequence(parts: Parameters<typeof formatKeySequenceExtra>[0], config: TuiConfig.Resolved) {
+  return formatKeySequenceExtra(parts, formatOptions(config))
+}
+
+export function formatKeyBindings(
+  bindings: Parameters<typeof formatCommandBindingsExtra>[0],
+  config: TuiConfig.Resolved,
+) {
+  return formatCommandBindingsExtra(bindings, formatOptions(config))
+}
 
 export function registerOpencodeKeymap(keymap: OpenTuiKeymap, renderer: CliRenderer, config: TuiConfig.Resolved) {
   const offCommaBindings = addons.registerCommaBindings(keymap)

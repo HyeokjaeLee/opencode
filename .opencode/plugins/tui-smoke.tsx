@@ -3,8 +3,8 @@ import { useTerminalDimensions, type JSX } from "@opentui/solid"
 import { useBindings, useKeymapSelector } from "@opentui/keymap/solid"
 import { RGBA, VignetteEffect, type KeyEvent, type Renderable } from "@opentui/core"
 import {
+  formatCommandBindings,
   resolveBindingSections,
-  stringifyKeySequence,
   type BindingSectionsConfig,
   type BindingValue,
   TuiPlugin,
@@ -158,17 +158,26 @@ function createKeys(input: SmokeKeymap | undefined) {
 
 type Keys = ReturnType<typeof createKeys>
 
-const shortcut = (name: string) =>
+const formatOptions = (leader: string) => ({
+  tokenDisplay: {
+    "<leader>": leader,
+  },
+  keyNameAliases: {
+    pageup: "pgup",
+    pagedown: "pgdn",
+    delete: "del",
+  },
+  modifierAliases: {
+    meta: "alt",
+  },
+})
+
+const shortcut = (api: TuiPluginApi, name: string) =>
   useKeymapSelector((keymap) => {
-    const seen = new Set<string>()
-    return (keymap.getCommandBindings({ visibility: "registered", commands: [name] }).get(name) ?? [])
-      .map((binding) => stringifyKeySequence(binding.sequence, { preferDisplay: true, separator: " " }))
-      .filter((item) => {
-        if (!item || seen.has(item)) return false
-        seen.add(item)
-        return true
-      })
-      .join(", ")
+    return (
+      formatCommandBindings(keymap.getCommandBindings({ visibility: "registered", commands: [name] }).get(name), formatOptions(api.tuiConfig.keymap.leader)) ??
+      ""
+    )
   })
 
 const ui = {
@@ -500,18 +509,18 @@ const Screen = (props: {
     ],
     bindings: props.keys.sections.screen,
   }))
-  const screenHome = shortcut(command.screen_home)
-  const screenUp = shortcut(command.screen_up)
-  const screenDown = shortcut(command.screen_down)
-  const screenModal = shortcut(command.screen_modal)
-  const screenAlert = shortcut(command.screen_alert)
-  const screenConfirm = shortcut(command.screen_confirm)
-  const screenPrompt = shortcut(command.screen_prompt)
-  const screenSelect = shortcut(command.screen_select)
-  const screenLocal = shortcut(command.screen_local)
-  const screenHost = shortcut(command.screen_host)
-  const localPush = shortcut(command.local_push)
-  const localPop = shortcut(command.local_pop)
+  const screenHome = shortcut(props.api, command.screen_home)
+  const screenUp = shortcut(props.api, command.screen_up)
+  const screenDown = shortcut(props.api, command.screen_down)
+  const screenModal = shortcut(props.api, command.screen_modal)
+  const screenAlert = shortcut(props.api, command.screen_alert)
+  const screenConfirm = shortcut(props.api, command.screen_confirm)
+  const screenPrompt = shortcut(props.api, command.screen_prompt)
+  const screenSelect = shortcut(props.api, command.screen_select)
+  const screenLocal = shortcut(props.api, command.screen_local)
+  const screenHost = shortcut(props.api, command.screen_host)
+  const localPush = shortcut(props.api, command.local_push)
+  const localPop = shortcut(props.api, command.local_pop)
 
   return (
     <box width={dim().width} height={dim().height} backgroundColor={skin.panel} position="relative">
@@ -686,10 +695,10 @@ const Modal = (props: {
     ],
     bindings: props.keys.sections.modal,
   }))
-  const modalCommand = shortcut(command.modal)
-  const screenCommand = shortcut(command.screen)
-  const modalAccept = shortcut(command.modal_accept)
-  const modalClose = shortcut(command.modal_close)
+  const modalCommand = shortcut(props.api, command.modal)
+  const screenCommand = shortcut(props.api, command.screen)
+  const modalAccept = shortcut(props.api, command.modal_accept)
+  const modalClose = shortcut(props.api, command.modal_close)
 
   return (
     <box width="100%" height="100%" backgroundColor={skin.panel}>
