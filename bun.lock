@@ -509,7 +509,7 @@
       },
       "peerDependencies": {
         "@opentui/core": ">=0.0.0-20260430-6f076231",
-        "@opentui/keymap": "0.0.0-20260430-6f076231",
+        "@opentui/keymap": ">=0.0.0-20260430-6f076231",
         "@opentui/solid": ">=0.0.0-20260430-6f076231",
       },
       "optionalPeers": [
