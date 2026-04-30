@@ -1,6 +1,6 @@
 import { createContext, createMemo, createSignal, useContext, type Accessor, type ParentProps } from "solid-js"
 import { DialogSelect, type DialogSelectRef } from "@tui/ui/dialog-select"
-import { useDialog } from "@tui/ui/dialog"
+import { useDialog, type DialogContext } from "@tui/ui/dialog"
 import {
   formatKeyBindings,
   reactiveMatcherFromSignal,
@@ -122,7 +122,8 @@ function CommandPaletteDialog(props: { run(command: string): void }) {
       footer: formatKeyBindings(entry.bindings, config),
       value: entry.command.name,
       suggested: entry.command.fields.suggested === true,
-      onSelect: () => {
+      onSelect: (dialog: DialogContext) => {
+        dialog.clear()
         props.run(entry.command.name)
       },
     })),
