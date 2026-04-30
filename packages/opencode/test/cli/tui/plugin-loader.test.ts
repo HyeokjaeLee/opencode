@@ -79,7 +79,8 @@ async function load(): Promise<Data> {
 
       await Bun.write(
         localPluginPath,
-        `import { useBindings } from "@opentui/keymap/solid"
+        `import { resolveBindingSections } from "@opentui/keymap/extras"
+import { useBindings } from "@opentui/keymap/solid"
 
 export const ignored = async (_input, options) => {
   if (!options?.fn_marker) return
@@ -95,7 +96,7 @@ export default {
     const cfg_speed = api.tuiConfig.scroll_speed
     const cfg_accel = api.tuiConfig.scroll_acceleration?.enabled
     const cfg_submit = api.tuiConfig.keybinds?.input_submit
-    const keymap = api.keymap.resolveBindingSections(options.keymap?.sections ?? {
+    const keymap = resolveBindingSections(options.keymap?.sections ?? {
       main: {
         "plugin.loader.local": "ctrl+shift+m",
         "plugin.loader.close": "escape",
@@ -148,7 +149,7 @@ export default {
         key_close,
         key_unknown,
         has_keymap: typeof api.keymap.registerLayer === "function",
-        has_keymap_resolver: typeof api.keymap.resolveBindingSections === "function",
+        has_resolve_binding_sections: typeof resolveBindingSections === "function",
         has_keymap_solid: typeof useBindings === "function",
         kv_before,
         kv_after,
@@ -664,7 +665,7 @@ describe("tui.plugin.loader", () => {
     expect(data.local.key_close).toBe("q")
     expect(data.local.key_unknown).toBe("ctrl+k")
     expect(data.local.has_keymap).toBe(true)
-    expect(data.local.has_keymap_resolver).toBe(true)
+    expect(data.local.has_resolve_binding_sections).toBe(true)
     expect(data.local.has_keymap_solid).toBe(true)
     expect(data.local.kv_before).toBe("missing")
     expect(data.local.kv_after).toBe("stored")

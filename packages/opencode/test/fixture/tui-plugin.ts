@@ -1,6 +1,5 @@
 import { createOpencodeClient } from "@opencode-ai/sdk/v2"
-import { RGBA, type CliRenderer, type KeyEvent, type Renderable } from "@opentui/core"
-import { resolveBindingSections, type BindingSectionsConfig } from "@opentui/keymap/extras"
+import { RGBA, type CliRenderer } from "@opentui/core"
 import type { HostPluginApi } from "../../src/cli/cmd/tui/plugin/slots"
 
 type Count = {
@@ -119,13 +118,6 @@ function tuiConfig(input?: Partial<HostPluginApi["tuiConfig"]>): HostPluginApi["
   }
 }
 
-function resolvePluginBindingSections<Section extends string>(
-  config: BindingSectionsConfig<Renderable, KeyEvent> | undefined,
-  options: { sections: readonly Section[] },
-) {
-  return resolveBindingSections<Renderable, KeyEvent, BindingSectionsConfig<Renderable, KeyEvent>, Section>(config ?? {}, options)
-}
-
 export function createTuiPluginApi(opts: Opts = {}): HostPluginApi {
   const kv: Record<string, unknown> = {}
   const count = opts.count
@@ -158,7 +150,7 @@ export function createTuiPluginApi(opts: Opts = {}): HostPluginApi {
       return this
     },
   }
-  const baseKeymap =
+  const keymap =
     opts.keymap ??
     ({
       acquireResource(_key: symbol, setup: () => () => void) {
@@ -174,15 +166,10 @@ export function createTuiPluginApi(opts: Opts = {}): HostPluginApi {
           count.command_drop += 1
         }
       },
-      resolveBindingSections: resolvePluginBindingSections,
       runCommand() {
         return { ok: true } as const
       },
     } as unknown as HostPluginApi["keymap"])
-  const keymap: HostPluginApi["keymap"] = Object.assign(Object.create(baseKeymap), {
-    formatCommandBindings: baseKeymap.formatCommandBindings ?? (() => ""),
-    resolveBindingSections: baseKeymap.resolveBindingSections ?? resolvePluginBindingSections,
-  })
 
   function kvGet(name: string): unknown
   function kvGet<Value>(name: string, fallback: Value): Value

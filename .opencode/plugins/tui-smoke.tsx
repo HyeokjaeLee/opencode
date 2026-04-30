@@ -2,8 +2,11 @@
 import { useTerminalDimensions, type JSX } from "@opentui/solid"
 import { useBindings, useKeymapSelector } from "@opentui/keymap/solid"
 import { RGBA, VignetteEffect, type KeyEvent, type Renderable } from "@opentui/core"
-import type { BindingSectionsConfig, BindingValue } from "@opentui/keymap/extras"
-import type {
+import {
+  resolveBindingSections,
+  stringifyKeySequence,
+  type BindingSectionsConfig,
+  type BindingValue,
   TuiPlugin,
   TuiPluginApi,
   TuiPluginMeta,
@@ -46,6 +49,14 @@ type SectionName = (typeof sectionNames)[number]
 type SectionConfig = Record<string, BindingValue<Renderable, KeyEvent>>
 type SmokeKeymap = {
   sections?: Partial<Record<SectionName, SectionConfig>>
+}
+
+type SmokeOptions = {
+  enabled?: boolean
+  label?: unknown
+  route?: unknown
+  vignette?: unknown
+  keymap?: SmokeKeymap
 }
 
 const defaultKeymap = {
@@ -91,47 +102,6 @@ const num = (value: unknown, fallback: number) => {
   return value
 }
 
-const isObject = (value: unknown): value is Record<string, unknown> => {
-  return !!value && typeof value === "object" && !Array.isArray(value)
-}
-
-const bindingItem = (value: unknown) => {
-  return typeof value === "string" || isObject(value)
-}
-
-const bindingValue = (value: unknown): value is BindingValue<Renderable, KeyEvent> => {
-  if (value === false || value === "none") return true
-  if (bindingItem(value)) return true
-  return Array.isArray(value) && value.every(bindingItem)
-}
-
-const sectionConfig = (value: unknown, name: SectionName) => {
-  if (value === undefined) return
-  if (!isObject(value)) throw new Error(`Invalid keymap section "${name}"`)
-  const result: SectionConfig = {}
-  for (const [cmd, binding] of Object.entries(value)) {
-    if (!bindingValue(binding)) throw new Error(`Invalid keymap binding "${name}.${cmd}"`)
-    result[cmd] = binding
-  }
-  return result
-}
-
-const keymapOption = (value: unknown): SmokeKeymap | undefined => {
-  if (value === undefined) return
-  if (!isObject(value)) throw new Error("Invalid keymap config")
-  if (value.sections === undefined) return {}
-  if (!isObject(value.sections)) throw new Error("Invalid keymap sections")
-  return {
-    sections: {
-      global: sectionConfig(value.sections.global, "global"),
-      dialog: sectionConfig(value.sections.dialog, "dialog"),
-      local: sectionConfig(value.sections.local, "local"),
-      screen: sectionConfig(value.sections.screen, "screen"),
-      modal: sectionConfig(value.sections.modal, "modal"),
-    },
-  }
-}
-
 type Cfg = {
   label: string
   route: string
@@ -153,12 +123,12 @@ type State = {
   local: number
 }
 
-const cfg = (options: Record<string, unknown> | undefined) => {
+const cfg = (options: SmokeOptions | undefined) => {
   return {
     label: pick(options?.label, "smoke"),
     route: pick(options?.route, "workspace-smoke"),
     vignette: Math.max(0, num(options?.vignette, 0.35)),
-    keymap: keymapOption(options?.keymap),
+    keymap: options?.keymap,
   }
 }
 
@@ -169,8 +139,8 @@ const names = (input: Cfg) => {
   }
 }
 
-function createKeys(api: TuiPluginApi, input: SmokeKeymap | undefined) {
-  const sections = api.keymap.resolveBindingSections(
+function createKeys(input: SmokeKeymap | undefined) {
+  const sections = resolveBindingSections(
     {
       global: { ...defaultKeymap.global, ...input?.sections?.global },
       dialog: { ...defaultKeymap.dialog, ...input?.sections?.dialog },
@@ -188,7 +158,18 @@ function createKeys(api: TuiPluginApi, input: SmokeKeymap | undefined) {
 
 type Keys = ReturnType<typeof createKeys>
 
-const shortcut = (api: TuiPluginApi, name: string) => useKeymapSelector(() => api.keymap.formatCommandBindings(name))
+const shortcut = (name: string) =>
+  useKeymapSelector((keymap) => {
+    const seen = new Set<string>()
+    return (keymap.getCommandBindings({ visibility: "registered", commands: [name] }).get(name) ?? [])
+      .map((binding) => stringifyKeySequence(binding.sequence, { preferDisplay: true, separator: " " }))
+      .filter((item) => {
+        if (!item || seen.has(item)) return false
+        seen.add(item)
+        return true
+      })
+      .join(", ")
+  })
 
 const ui = {
   panel: "#1d1d1d",
@@ -519,18 +500,18 @@ const Screen = (props: {
     ],
     bindings: props.keys.sections.screen,
   }))
-  const screenHome = shortcut(props.api, command.screen_home)
-  const screenUp = shortcut(props.api, command.screen_up)
-  const screenDown = shortcut(props.api, command.screen_down)
-  const screenModal = shortcut(props.api, command.screen_modal)
-  const screenAlert = shortcut(props.api, command.screen_alert)
-  const screenConfirm = shortcut(props.api, command.screen_confirm)
-  const screenPrompt = shortcut(props.api, command.screen_prompt)
-  const screenSelect = shortcut(props.api, command.screen_select)
-  const screenLocal = shortcut(props.api, command.screen_local)
-  const screenHost = shortcut(props.api, command.screen_host)
-  const localPush = shortcut(props.api, command.local_push)
-  const localPop = shortcut(props.api, command.local_pop)
+  const screenHome = shortcut(command.screen_home)
+  const screenUp = shortcut(command.screen_up)
+  const screenDown = shortcut(command.screen_down)
+  const screenModal = shortcut(command.screen_modal)
+  const screenAlert = shortcut(command.screen_alert)
+  const screenConfirm = shortcut(command.screen_confirm)
+  const screenPrompt = shortcut(command.screen_prompt)
+  const screenSelect = shortcut(command.screen_select)
+  const screenLocal = shortcut(command.screen_local)
+  const screenHost = shortcut(command.screen_host)
+  const localPush = shortcut(command.local_push)
+  const localPop = shortcut(command.local_pop)
 
   return (
     <box width={dim().width} height={dim().height} backgroundColor={skin.panel} position="relative">
@@ -705,10 +686,10 @@ const Modal = (props: {
     ],
     bindings: props.keys.sections.modal,
   }))
-  const modalCommand = shortcut(props.api, command.modal)
-  const screenCommand = shortcut(props.api, command.screen)
-  const modalAccept = shortcut(props.api, command.modal_accept)
-  const modalClose = shortcut(props.api, command.modal_close)
+  const modalCommand = shortcut(command.modal)
+  const screenCommand = shortcut(command.screen)
+  const modalAccept = shortcut(command.modal_accept)
+  const modalClose = shortcut(command.modal_close)
 
   return (
     <box width="100%" height="100%" backgroundColor={skin.panel}>
@@ -1015,14 +996,15 @@ const reg = (api: TuiPluginApi, input: Cfg, keys: Keys) => {
 }
 
 const tui: TuiPlugin = async (api, options, meta) => {
-  if (options?.enabled === false) return
+  const input = options as SmokeOptions | undefined
+  if (input?.enabled === false) return
 
   await api.theme.install("./smoke-theme.json")
   api.theme.set("smoke-theme")
 
-  const value = cfg(options ?? undefined)
+  const value = cfg(input)
   const route = names(value)
-  const keys = createKeys(api, value.keymap)
+  const keys = createKeys(value.keymap)
   const fx = new VignetteEffect(value.vignette)
   const post = fx.apply.bind(fx)
   api.renderer.addPostProcessFn(post)
